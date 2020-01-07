@@ -5,7 +5,7 @@
 const Mat4 = CanvasMatrix4 // alias
 const RAD = Math.PI/180 ;
 const PoxPlayer  = function(can,opt) {
-	this.version = "1.2.0" 
+	this.version = "1.3.0" 
 	if(!Promise) {
 		alert("This browser is not supported!!") ;
 		return null ;		
@@ -37,6 +37,10 @@ const PoxPlayer  = function(can,opt) {
 	
 	this.pixRatio = 1 
 	this.pox = {} ;
+	this.eventListener = {
+		frame:[],
+		gpad:[]
+	}
 
 	// canvas initialize
 	this.resize() ;
@@ -63,6 +67,28 @@ const PoxPlayer  = function(can,opt) {
 	this.cam1 = this.createCamera() ;
 	this.ccam = this.cam1 
 	console.log(this)
+}
+PoxPlayer.prototype.addEvent = function(ev,cb) {
+	let el = null
+	switch(ev) {
+		case "frame":
+			el = {cb:cb,active:true}
+			this.eventListener.frame.push(el)
+			break 
+		case "gpad":
+			el = {cb:cb,active:true}
+			this.eventListener.gpad.push(el)
+			break 
+	}
+	return el
+}
+PoxPlayer.prototype.removeEvent = function(ev) {
+	this.eventListener.frame = this.eventListener.frame.filter((e)=>(e!==ev))
+	this.eventListener.gpad = this.eventListener.gpad.filter((e)=>(e!==ev))
+}
+PoxPlayer.prototype.clearEvent = function() {
+	this.eventListener.frame = []
+	this.eventListener.gpad = []
 }
 PoxPlayer.prototype.enterVR = function() {
 	let ret = true
@@ -292,11 +318,11 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 			}
 		})
 //		console.log(this.pox.gPad)
-		this.pox.gPad.ev = (pad,b,p)=> {
-			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
+		this.pox.gPad.ev = (pad)=> {
+			ret = this.callEvent("gpad",pad) ;
 		}
 		this.pox.gPad2.ev = (pad,b,p)=> {
-			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
+			ret = this.callEvent("gpad",pad) ;
 		}
 	}
 
@@ -416,6 +442,14 @@ PoxPlayer.prototype.callEvent = function(kind,ev,opt) {
 	} catch(err) {
 		this.errCb(err.stack)
 	}
+	if(kind=="gpad") {
+		for(let i=0;i<this.eventListener.gpad.length;i++) {	//attached event
+			const f = this.eventListener.gpad[i]
+			if(f.active) {
+				f.cb({gpad:ev})
+			}
+		}		
+	}
 	return ret 
 }
 PoxPlayer.prototype.setParam = function(dom) {
@@ -527,6 +561,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		if(pox.setting.cam) this.cam1.setCam(pox.setting.cam)
 //		if(ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 		this.keyElelment.value = "" ;
+		this.clearEvent()
 		
 		resolve()
 		//draw loop
@@ -575,6 +610,12 @@ PoxPlayer.prototype.setScene = function(sc) {
 			}
 			ccam.update()	// camera update
 			update(r,pox,this.cam1.cam,rt) ; // scene update 
+			for(let i=0;i<this.eventListener.frame.length;i++) {	//attached event
+				const f = this.eventListener.frame[i]
+				if(f.active) {
+					f.cb({render:r,pox:pox,cam:this.cam1.cam,rtime:rt})
+				}
+			}
 			Param.updateTimer() ;
 			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
 			this.ltime = ct 
@@ -645,6 +686,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let up = [{model:mod[0],fs_uni:{},vs_uni:{}},
 			{model:mod[1],fs_uni:{},vs_uni:{}}]
 
+		up[0].fs_uni.stereo = 1 ;
 		up[0].fs_uni.resolution = [can.width,can.height]
 		up[0].fs_uni.camMatirx = camm[0].camV.getAsWebGLFloatArray()
 		up[0].fs_uni.eyevec = [camm[0].camX,camm[0].camY,camm[0].camZ]
@@ -652,6 +694,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		up[0].vs_uni.camMatirx = up[0].fs_uni.camMatirx
 		up[0].vs_uni.eyevec = up[0].fs_uni.eyevec 
 	
+		up[1].fs_uni.stereo = 2  ;
 		up[1].fs_uni.resolution = up[0].fs_uni.resolution
 		up[1].fs_uni.camMatirx = camm[1].camV.getAsWebGLFloatArray()
 		up[1].fs_uni.eyevec = [camm[1].camX,camm[1].camY,camm[1].camZ]
