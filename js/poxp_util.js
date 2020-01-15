@@ -1,7 +1,9 @@
 //utils
 //console panel
+
 class Cpanel {
 constructor(render,opt) {
+	this.hide = false 
 	if(!opt) opt = {}
 	if(opt.width===undefined) opt.width = 100 
 	if(opt.height===undefined) opt.height = 50 
@@ -13,7 +15,6 @@ constructor(render,opt) {
 	if(opt.pos===undefined) opt.pos = [-0.2,0.2,-0.8]
 	if(opt.camFix===undefined) opt.camFix = true 
 
-	
 	this.pcanvas = document.createElement('canvas') ;
 	this.pcanvas.width = opt.width ;
 	this.pcanvas.height = opt.height ;	
@@ -32,7 +33,7 @@ constructor(render,opt) {
 		
 	const ptex = {name:"cpanel"+this.id,canvas:this.pcanvas,opt:{flevel:1,repeat:2,nomipmap:true}}
 	render.addTex(ptex) 
-	render.addModel(
+	this.model = 
 		{geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
 		}).objModel(),
 			camFix:opt.camFix,
@@ -41,9 +42,14 @@ constructor(render,opt) {
 			vs_uni:{uvMatrix:[1,0,0, 0,1,0, 0,0,0]},
 			fs_uni:{tex1:"cpanel"+this.id,colmode:2,shmode:1}
 		}
-	)
+	render.addModel(this.model)
+}
+show(flag) {
+	this.hide = !flag 
+	this.model.hide = this.hide 
 }
 update(render,text) {
+	if(this.hide) return 
 	this.j2c.clear(this.clearColor)
 	for(let i=0;i<text.length;i++) 
 		if(text[i]!==null) this.dd[i].str = text[i]
