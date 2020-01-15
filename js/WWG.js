@@ -703,7 +703,7 @@ WWG.prototype.Render.prototype.addModel = function(model) {
 }
 // remove model
 WWG.prototype.Render.prototype.removeModel = function(model) {
-	let mi = this.getModelIndex(mode) 
+	let mi = this.getModelIdx(model) 
 	this.data.model[mi] = null 
 	this.obuf[mi] = null 
 	this.modelCount--  
