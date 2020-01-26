@@ -1,6 +1,6 @@
-const POXP = {} ;
+var POXP = {} ;
 function $(e){return document.getElementById(e)}
-POXP.init= function(cb) {
+POXP.init= function(cb,src=null) {
 	const poxp = new PoxPlayer('#screen1', 
 		{capture:true,noWebGL2:false}) ;
 	POXP.poxp = poxp 
@@ -8,11 +8,20 @@ POXP.init= function(cb) {
 	
 	if(location.search.match(/\?.+\.json/)) {
 		poxp.load(location.search.substr(1)+"?"+ Math.random()).then((src)=>{
+			if(cb) cb(src)
 			POXP.set(src).then(()=>{
 				document.title = `PoExE:${POXP.setting.name}`
-				if(cb) cb(src)
+				
 			})
 		})
+	} else if(src!==null) {
+		poxp.load(src+"?"+ Math.random()).then((src)=>{
+			if(cb) cb(src)
+			POXP.set(src).then(()=>{
+				document.title = `PoExE:${POXP.setting.name}`
+				
+			})
+		})		
 	} else {
 		var s = localStorage.getItem("poxe_save") ;
 		var data ;
@@ -24,6 +33,8 @@ POXP.init= function(cb) {
 				document.title = `PoExE:${POXP.setting.name}`
 				if(cb) cb(src)
 			})
+		}).catch((err)=>{
+			alert("cannot load source")
 		})
 	}
 
@@ -42,7 +53,8 @@ POXP.init= function(cb) {
 			$("cc").style.opacity = d?0.:0.4 ;
 			$("footer").style.display = d?"none":"block" ;
 			$("vrbtn").style.display = d?"none":"block" ;
-			$("pad").style.opacity = d?0.:0.4 ;
+			$("padl").style.opacity = d?0.:0.4 ;
+			$("padr").style.opacity = d?0.:0.4 ;
 			window.scrollTo(0,1000)
 		})
 		poxp.enterVR()
@@ -92,7 +104,7 @@ POXP.init= function(cb) {
 		if(tpad) tpad.set(pad) 
 		ev.preventDefault()		
 	}
-	function tend(pad,tpad,ev){
+	function tend(pad,tpad,left,ev){
 		const id = ev.target.getAttribute("data-key") 
 		pad.buttons[id].touched = false 
 		pad.buttons[id].pressed = false 
@@ -111,7 +123,7 @@ POXP.init= function(cb) {
 		o.addEventListener("touchstart", (ev)=>{tstart(padl,poxp.pox.leftPad,ev)})
 		o.addEventListener("mousedown", (ev)=>{mdown(padl,poxp.pox.leftPad,ev)})
 		o.addEventListener("mouseup", (ev)=>{mup(padl,poxp.pox.leftPad,ev)})
-		o.addEventListener("touchend", (ev)=>{tend(padl,poxp.pox.leftPad,ev)})
+		o.addEventListener("touchend", (ev)=>{tend(padl,poxp.pox.leftPad,true,ev)})
 		o.addEventListener("mouseout", (ev)=>{clear(padl,poxp.pox.leftPad,true,ev)})
 		o.addEventListener("touchcancel", (ev)=>{clear(padl,poxp.pox.leftPad,true,ev)})
 	})
@@ -121,7 +133,7 @@ POXP.init= function(cb) {
 		o.addEventListener("touchstart", (ev)=>{tstart(padr,poxp.pox.rightPad,ev)})
 		o.addEventListener("mousedown", (ev)=>{mdown(padr,poxp.pox.rightPad,ev)})
 		o.addEventListener("mouseup", (ev)=>{mup(padr,poxp.pox.rightPad,ev)})
-		o.addEventListener("touchend", (ev)=>{tend(padr,poxp.pox.rightPad,ev)})
+		o.addEventListener("touchend", (ev)=>{tend(padr,poxp.pox.rightPad,false,ev)})
 		o.addEventListener("mouseout", (ev)=>{clear(padr,poxp.pox.rightPad,false,ev)})
 		o.addEventListener("touchcancel", (ev)=>{clear(padr,poxp.pox.rightPad,false,ev)})
 	})	

@@ -2839,6 +2839,7 @@ GPad.prototype.init = function(idx,cb) {
 	if(idx==undefined) idx = 0 
 	this.idx = idx 
 	if(!navigator.getGamepads) return false ;
+	let ret = true 
 	gamepads = navigator.getGamepads();
 //	console.log(gamepads)
 	if(gamepads[this.idx]) {
@@ -2848,6 +2849,7 @@ GPad.prototype.init = function(idx,cb) {
 		this.egp = null ;
 	} else {
 		this.conn = false 
+		ret = false 
 	}
 	addEventListener("gamepadconnected", (e)=> {
 		if(e.gamepad.index != this.idx ) return 
@@ -2882,7 +2884,7 @@ GPad.prototype.init = function(idx,cb) {
 		],
 		axes:[0,0]
 	}
-	return true ;
+	return ret ;
 }
 GPad.prototype.get = function(pad) {
 	var gp 
@@ -2922,12 +2924,14 @@ GPad.prototype.get = function(pad) {
 	for(var i=0;i<gp.axes.length;i++) {
 		gp.dpad[i] = 0 
 		if(lgp) {
+			
 			if(Math.abs(lgp.axes[i])<th && Math.abs(gp.axes[i])>=th) {gp.dpad[i] = 1;gp.pf=true}
 			if(Math.abs(lgp.axes[i])>=th && Math.abs(gp.axes[i])<th) {gp.dpad[i] = -1;gp.pf=true}
 		}
 		lgp.axes[i] = gp.axes[i]
 	}
 	this.gp = gp 
+
 	if(this.ev && (gp.bf || gp.pf || gp.tf)){
 		this.ev(gp) 
 	}
@@ -3994,21 +3998,20 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	if(window.GPad) {
 		POX.gPad = new GPad()
 		POX.gPad2 = new GPad()
-		POX.leftPad = POX.gPad 
-		POX.rightPad = POX.gPad2 
-		POX.gPad.init(0,(pad,f)=>{
+		
+		if(!POX.gPad.init(0,(pad,f)=>{
 			if(f) {
 				if(pad.gp.hand=="left") POX.leftPad = pad 
 				else if(pad.gp.hand=="right") POX.rightPad = pad
 				else  POX.rightPad = pad
 			}
-		})
-		POX.gPad2.init(1,(pad,f)=>{
+		})) POX.rightPad = POX.gPad
+		if(!POX.gPad2.init(1,(pad,f)=>{
 			if(f) {
 				if(pad.gp.hand=="left") POX.leftPad = pad 
 				if(pad.gp.hand=="right") POX.rightPad = pad 
 			}
-		})
+		})) POX.leftPad = POX.gPad2
 //		console.log(this.pox.gPad)
 		this.pox.gPad.ev = (pad)=> {
 			ret = this.callEvent("gpad",pad) ;
@@ -4058,7 +4061,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 		try {
 			POX.eval = new Function("POX",'"use strict";'+m)
 		}catch(err) {
-//			console.log(err)
+			console.log(err)
 			this.emsg = ("parse error "+err.stack);
 //			throw new Error('reject!!')
 			return(null);
@@ -4322,6 +4325,17 @@ PoxPlayer.prototype.setScene = function(sc) {
 	})
 	}) // promise
 	
+	function getParentMtx(render,parent) {
+		let p = render.getModelData(parent) 
+		if(!p) return new Mat4() 
+		let mm = new Mat4(p.bm)
+		if(!mm) mm = new Mat4() 
+		if(p.mm) mm.multRight(p.mm)
+		if(p.parent!==undefined) {
+			mm.multRight( getParentMtx(render,p.parent)) 
+		} 
+		return mm 
+	}
 	// calc model matrix
 	function modelMtx2(render,camm) {
 
@@ -4331,6 +4345,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 			let d = render.getModelData(i) ;
 			bm.load(d.bm)
 			if(d.mm) bm.multRight(d.mm) ;
+			if(d.parent!==undefined) {
+				bm.multRight( getParentMtx(render,d.parent ))
+			}
 			if(render.data.group) {
 				let g = render.data.group ;
 				for(let gi = 0 ;gi < g.length;gi++) {
@@ -4518,7 +4535,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		moveY:false,
 		padMoveUD:true,
 		padRot:true,
-		cv:[0,0,0]	//head direction
+		headVec:[0,0,0]	//head direction
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
@@ -4727,7 +4744,8 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gpad,gpad2) {
 	let gp = gpad
-	if(gp.bf || gp.pf ) {
+//	console.log(gp.dpad)
+	if(false) {
 		let cx =0,cy =0,cz=1
 		if(this.cam.orientation ) {
 			let x = this.cam.orientation[0] ;
@@ -4752,9 +4770,9 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad,gpad2) {
 			let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
 
 			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
-				this.vcx = this.cam.cv[0] * gp.axes[1]*mv
-				if(this.cam.moveY) this.vcy = this.cam.cv[1] * gp.axes[1]*mv
-				this.vcz = this.cam.cv[2] * gp.axes[1]*mv
+				this.vcx = this.cam.headVec[0] * gp.axes[1]*mv
+				if(this.cam.moveY) this.vcy = this.cam.headVec[1] * gp.axes[1]*mv
+				this.vcz = this.cam.headVec[2] * gp.axes[1]*mv
 			} else {
 				this.vcx = 0 
 				this.vcz = 0 
@@ -4838,6 +4856,9 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camP[1].makeIdentity()
 		this.camV[0].makeIdentity()
 		this.camV[1].makeIdentity()
+		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.cam.headVec = cmat.multVec4(0,0,1,0)
+			
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
 			ex[0] =  upy * (cam.camCZ-cz) - upz * (cam.camCY-cy);
@@ -4890,6 +4911,21 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camV[1].multRight( this.vrv[1] )
 		this.camVP[1].load(this.camV[1]).multRight(this.vrp[1]) 
 		this.camP[1].load(this.vrp[1])
+		
+		let cx =0,cy =0,cz=1
+		if(this.cam.orientation ) {
+			let x = this.cam.orientation[0] ;
+			let y = this.cam.orientation[1] ;
+			let z = this.cam.orientation[2] ;
+			let w = this.cam.orientation[3] ;
+			cx = -2*(-x*z-y*w) 
+			cy = -2*(-y*z+x*w)
+			cz = -(x*x+y*y-z*z-w*w)
+			let l = Math.hypot(cx,cy,cz)
+			cx /= l ,cy /=l, cz /= l 
+		}
+		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.cam.headVec = cmat.multVec4(cx,cy,cz,0)
 
 		let ivr = new Mat4().load(this.camV[1]).invert() ;
 		let ivl = new Mat4().load(this.camV[0]).invert() ;

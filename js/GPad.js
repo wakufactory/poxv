@@ -17,6 +17,7 @@ GPad.prototype.init = function(idx,cb) {
 	if(idx==undefined) idx = 0 
 	this.idx = idx 
 	if(!navigator.getGamepads) return false ;
+	let ret = true 
 	gamepads = navigator.getGamepads();
 //	console.log(gamepads)
 	if(gamepads[this.idx]) {
@@ -26,6 +27,7 @@ GPad.prototype.init = function(idx,cb) {
 		this.egp = null ;
 	} else {
 		this.conn = false 
+		ret = false 
 	}
 	addEventListener("gamepadconnected", (e)=> {
 		if(e.gamepad.index != this.idx ) return 
@@ -60,7 +62,7 @@ GPad.prototype.init = function(idx,cb) {
 		],
 		axes:[0,0]
 	}
-	return true ;
+	return ret ;
 }
 GPad.prototype.get = function(pad) {
 	var gp 
@@ -100,14 +102,16 @@ GPad.prototype.get = function(pad) {
 	for(var i=0;i<gp.axes.length;i++) {
 		gp.dpad[i] = 0 
 		if(lgp) {
+			
 			if(Math.abs(lgp.axes[i])<th && Math.abs(gp.axes[i])>=th) {gp.dpad[i] = 1;gp.pf=true}
 			if(Math.abs(lgp.axes[i])>=th && Math.abs(gp.axes[i])<th) {gp.dpad[i] = -1;gp.pf=true}
 		}
 		lgp.axes[i] = gp.axes[i]
 	}
 	this.gp = gp 
+
 	if(this.ev && (gp.bf || gp.pf || gp.tf)){
-		this.ev(gp,gp.dbtn,gp.dpad) 
+		this.ev(gp) 
 	}
 //	console.log(gp)
 	return gp ;	

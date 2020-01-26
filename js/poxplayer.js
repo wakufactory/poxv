@@ -302,21 +302,20 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	if(window.GPad) {
 		POX.gPad = new GPad()
 		POX.gPad2 = new GPad()
-		POX.leftPad = POX.gPad 
-		POX.rightPad = POX.gPad2 
-		POX.gPad.init(0,(pad,f)=>{
+		
+		if(!POX.gPad.init(0,(pad,f)=>{
 			if(f) {
 				if(pad.gp.hand=="left") POX.leftPad = pad 
 				else if(pad.gp.hand=="right") POX.rightPad = pad
 				else  POX.rightPad = pad
 			}
-		})
-		POX.gPad2.init(1,(pad,f)=>{
+		})) POX.rightPad = POX.gPad
+		if(!POX.gPad2.init(1,(pad,f)=>{
 			if(f) {
 				if(pad.gp.hand=="left") POX.leftPad = pad 
 				if(pad.gp.hand=="right") POX.rightPad = pad 
 			}
-		})
+		})) POX.leftPad = POX.gPad2
 //		console.log(this.pox.gPad)
 		this.pox.gPad.ev = (pad)=> {
 			ret = this.callEvent("gpad",pad) ;
@@ -366,7 +365,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 		try {
 			POX.eval = new Function("POX",'"use strict";'+m)
 		}catch(err) {
-//			console.log(err)
+			console.log(err)
 			this.emsg = ("parse error "+err.stack);
 //			throw new Error('reject!!')
 			return(null);
@@ -609,7 +608,6 @@ PoxPlayer.prototype.setScene = function(sc) {
 				if(ccam.cam.gPad && rp!=null ) ccam.setPad( rp,lp )
 			}
 			ccam.update()	// camera update
-			update(r,pox,this.cam1.cam,rt) ; // scene update 
 			for(let i=0;i<this.eventListener.frame.length;i++) {	//attached event
 				const f = this.eventListener.frame[i]
 				if(f.active) {
@@ -617,6 +615,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 				}
 			}
 			Param.updateTimer() ;
+			update(r,pox,this.cam1.cam,rt) ; // scene update 
+
 			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
 			this.ltime = ct 
 			this.rtime = rt 
@@ -629,6 +629,17 @@ PoxPlayer.prototype.setScene = function(sc) {
 	})
 	}) // promise
 	
+	function getParentMtx(render,parent) {
+		let p = render.getModelData(parent) 
+		if(!p) return new Mat4() 
+		let mm = new Mat4(p.bm)
+		if(!mm) mm = new Mat4() 
+		if(p.mm) mm.multRight(p.mm)
+		if(p.parent!==undefined) {
+			mm.multRight( getParentMtx(render,p.parent)) 
+		} 
+		return mm 
+	}
 	// calc model matrix
 	function modelMtx2(render,camm) {
 
@@ -638,6 +649,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 			let d = render.getModelData(i) ;
 			bm.load(d.bm)
 			if(d.mm) bm.multRight(d.mm) ;
+			if(d.parent!==undefined) {
+				bm.multRight( getParentMtx(render,d.parent ))
+			}
 			if(render.data.group) {
 				let g = render.data.group ;
 				for(let gi = 0 ;gi < g.length;gi++) {

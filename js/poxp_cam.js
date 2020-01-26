@@ -31,7 +31,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		moveY:false,
 		padMoveUD:true,
 		padRot:true,
-		cv:[0,0,0]	//head direction
+		headVec:[0,0,0]	//head direction
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
@@ -240,7 +240,8 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gpad,gpad2) {
 	let gp = gpad
-	if(gp.bf || gp.pf ) {
+//	console.log(gp.dpad)
+	if(false) {
 		let cx =0,cy =0,cz=1
 		if(this.cam.orientation ) {
 			let x = this.cam.orientation[0] ;
@@ -265,9 +266,9 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad,gpad2) {
 			let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
 
 			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
-				this.vcx = this.cam.cv[0] * gp.axes[1]*mv
-				if(this.cam.moveY) this.vcy = this.cam.cv[1] * gp.axes[1]*mv
-				this.vcz = this.cam.cv[2] * gp.axes[1]*mv
+				this.vcx = this.cam.headVec[0] * gp.axes[1]*mv
+				if(this.cam.moveY) this.vcy = this.cam.headVec[1] * gp.axes[1]*mv
+				this.vcz = this.cam.headVec[2] * gp.axes[1]*mv
 			} else {
 				this.vcx = 0 
 				this.vcz = 0 
@@ -351,6 +352,9 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camP[1].makeIdentity()
 		this.camV[0].makeIdentity()
 		this.camV[1].makeIdentity()
+		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.cam.headVec = cmat.multVec4(0,0,1,0)
+			
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
 			ex[0] =  upy * (cam.camCZ-cz) - upz * (cam.camCY-cy);
@@ -403,6 +407,21 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camV[1].multRight( this.vrv[1] )
 		this.camVP[1].load(this.camV[1]).multRight(this.vrp[1]) 
 		this.camP[1].load(this.vrp[1])
+		
+		let cx =0,cy =0,cz=1
+		if(this.cam.orientation ) {
+			let x = this.cam.orientation[0] ;
+			let y = this.cam.orientation[1] ;
+			let z = this.cam.orientation[2] ;
+			let w = this.cam.orientation[3] ;
+			cx = -2*(-x*z-y*w) 
+			cy = -2*(-y*z+x*w)
+			cz = -(x*x+y*y-z*z-w*w)
+			let l = Math.hypot(cx,cy,cz)
+			cx /= l ,cy /=l, cz /= l 
+		}
+		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.cam.headVec = cmat.multVec4(cx,cy,cz,0)
 
 		let ivr = new Mat4().load(this.camV[1]).invert() ;
 		let ivl = new Mat4().load(this.camV[0]).invert() ;
