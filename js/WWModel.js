@@ -13,6 +13,9 @@ class WWModel {
 	let wy = (param.wy)?param.wy:1.0 ;
 	let wz = (param.wz)?param.wz:1.0 ;
 	let div = (param.div)?param.div:10 ;
+	let divx = (param.divx)?param.divx:div ;
+	let divy = (param.divy)?param.divy:div ;
+	let divz = (param.divz)?param.divz:div ;
 	let ninv = (param.ninv)?-1:1 ;
 	let p = [] ;
 	let n = [] ;
@@ -121,7 +124,7 @@ class WWModel {
 		}	
 		break ;
 	case "cylinder":
-		let divy = (param.divy)?param.divy:1
+		divy = (param.divy)?param.divy:1
 		for(let i = 0 ; i <= div ; ++i) {
 			let v = i / (0.0+div);
 			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
@@ -198,7 +201,7 @@ class WWModel {
 		for(let j =0; j < div-1 ;j++) {
 			s.push([j,j+1,div]) ;
 		}
-		s.push([j,0,div])
+		s.push([div-1,0,div])
 		break; 
 	case "plane":
 		if(!param.wz)  {
@@ -269,7 +272,7 @@ class WWModel {
 				nx:0, ny:1, nz:0,
 				mu:u, mv:v }
 			return r ;
-		},{start:1.0,end:0,div:div},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		},{start:1.0,end:0,div:divx},{start:0,end:1,div:divz},{ninv:param.ninv}) ;
 		return this ;		
 		break ;
 	case "torus":
@@ -297,7 +300,7 @@ class WWModel {
 				mu:u, mv:v }
 			return r ;			
 			
-		},{start:0,end:1.0,div:div*2},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		},{start:0,end:1.0,div:divx*2},{start:0,end:1,div:divy},{ninv:param.ninv}) ;
 		return this ;
 	case "polyhedron":
 
@@ -495,8 +498,8 @@ objModel(addvec,mode) {
 		}
 		ii += p.length ;
 	}
-	console.log(" vert:"+v.length);
-	console.log(" poly:"+ibuf.length/3);
+//	console.log(" vert:"+v.length);
+//	console.log(" poly:"+ibuf.length/3);
 	for(let i=0,l=v.length;i<l;i++) {
 		vbuf.push( parseFloat( v[i][0]) ) ;
 		vbuf.push( parseFloat( v[i][1]) ) ;
@@ -714,10 +717,9 @@ static loadLines(path,cb,lbufsize) {
 }
 // load .obj file
 async loadObj(path,scale) {
-	let self = this ;
 	if(!scale) scale=1.0 ;
-	return new Promise(function(resolve,reject) {
-		self.loadAjax(path).then(function(data) {
+	return new Promise((resolve,reject)=> {
+		this.loadAjax(path).then((data)=> {
 //			console.log(data) ;
 			let l = data.split("\n") ;
 			let v = [];
@@ -752,27 +754,27 @@ async loadObj(path,scale) {
 					x.push(ix) ;
 				}
 			}
-			self.obj_v = [] ;
-			if(c.length>0) self.obj_c = [] 
-			self.obj_i =x ;
-			if(n.length>0) self.obj_n = [] ;
-			if(t.length>0) self.obj_t = [] ;
+			this.obj_v = [] ;
+			if(c.length>0) this.obj_c = [] 
+			this.obj_i =x ;
+			if(n.length>0) this.obj_n = [] ;
+			if(t.length>0) this.obj_t = [] ;
 			if(x.length>0) {
 				for(let i in xi) {
 					let si = i.split("/") ;
 					let ind = xi[i] ;
-					self.obj_v[ind] = v[si[0]-1] ;
-					if(c.length>0) self.obj_c[ind] = c[si[0]-1]  
-					if(t.length>0) self.obj_t[ind] = t[si[1]-1] ;
-					if(n.length>0) self.obj_n[ind] = n[si[2]-1] ;
+					this.obj_v[ind] = v[si[0]-1] ;
+					if(c.length>0) this.obj_c[ind] = c[si[0]-1]  
+					if(t.length>0) this.obj_t[ind] = t[si[1]-1] ;
+					if(n.length>0) this.obj_n[ind] = n[si[2]-1] ;
 				}
 			} else {
-				self.obj_v = v 
-				if(c.length>0) self.obj_c = c
-				if(n.length>0) self.obj_n = n
+				this.obj_v = v 
+				if(c.length>0) this.obj_c = c
+				if(n.length>0) this.obj_n = n
 			}
-			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+self.obj_v.length) ;
-			resolve(self) ;
+			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+this.obj_v.length) ;
+			resolve(this) ;
 		}).catch(function(err) {
 			reject(err) ;
 		})

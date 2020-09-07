@@ -22,6 +22,7 @@ constructor(render,opt) {
 	this.j2c.default.font = opt.font
 	this.j2c.default.textColor = opt.color
 	this.clearColor = opt.clearColor 
+	this.ctx = this.j2c.ctx
 
 	this.dd = []
 	let y = opt.lheight 
@@ -34,9 +35,10 @@ constructor(render,opt) {
 	const ptex = {name:"cpanel"+this.id,canvas:this.pcanvas,opt:{flevel:1,repeat:2,nomipmap:true}}
 	render.addTex(ptex) 
 	this.model = 
-		{geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
+		{name:"panel"+this.id,
+			geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
 		}).objModel(),
-			camFix:opt.camFix,
+			camFix:opt.camFix,layer:opt.layer,
 			bm:new CanvasMatrix4().rotate(opt.ry,0,1,0).translate(opt.pos),
 			blend:"alpha",
 			vs_uni:{uvMatrix:[1,0,0, 0,1,0, 0,0,0]},

@@ -566,14 +566,14 @@ CanvasMatrix4.prototype.lookat = function(eyex, eyey, eyez, centerx, centery, ce
     }
 
     // X vector = Y cross Z
-    xx =  upy * zz - upz * zy;
-    xy = -upx * zz + upz * zx;
-    xz =  upx * zy - upy * zx;
+    var xx =  upy * zz - upz * zy;
+    var xy = -upx * zz + upz * zx;
+    var xz =  upx * zy - upy * zx;
 
     // Recompute Y = Z cross X
-    yx = zy * xz - zz * xy;
-    yy = -zx * xz + zz * xx;
-    yz = zx * xy - zy * xx;
+    var yx = zy * xz - zz * xy;
+    var yy = -zx * xz + zz * xx;
+    var yz = zx * xy - zy * xx;
 
     // cross product gives area of parallelogram, which is < 1.0 for
     // non-perpendicular unit-length vectors; so normalize x, y here

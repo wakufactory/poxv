@@ -17,14 +17,14 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.10" ;
+	this.version = "0.9.11" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
 }
 WWG.prototype.init = function(canvas,opt) {
 	this.can = canvas ;
-	var gl 
+	let gl 
 	if(!((gl = canvas.getContext("experimental-webgl",opt)) || (gl = canvas.getContext("webgl",opt)))) { return false } ;
 	if(!window.Promise) return false ;
 	this.gl = gl 
@@ -61,7 +61,7 @@ WWG.prototype.init = function(canvas,opt) {
 }
 WWG.prototype.init2 = function(canvas,opt) {
 	this.can = canvas ;
-	var gl 
+	let gl 
 	if(!((gl = canvas.getContext("experimental-webgl2",opt)) || (gl = canvas.getContext("webgl2",opt)))) { return false } ;
 	if(!window.Promise) return false ;
 	console.log("init for webGL2") ;
@@ -73,8 +73,9 @@ WWG.prototype.init2 = function(canvas,opt) {
 	this.ext_inst = true ;
 	this.inst_divisor = function(p,d){this.gl.vertexAttribDivisor(p, d)}
 	this.inst_draw = function(m,l,s,o,c){this.gl.drawElementsInstanced(m,l, s, o, c);}
-	this.inst_drawa = function(m,s,o,c) {this.gl.drawArrayInstanced(m, s, o, c);}
+	this.inst_drawa = function(m,s,o,c) {this.gl.drawArraysInstanced(m, s, o, c);}
 	this.ext_anis = gl.getExtension("EXT_texture_filter_anisotropic");
+	if(this.ext_anis) this.ext_anis_max = gl.getParameter(this.ext_anis.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
 	this.ext_ftex = true ;
 	this.ext_mrt = (gl.getParameter(gl.MAX_DRAW_BUFFERS)>1) ;
 	if(this.ext_mrt) {
@@ -95,35 +96,35 @@ WWG.prototype.init2 = function(canvas,opt) {
 	return true ;
 }
 WWG.prototype.loadAjax = function(src,opt) {
-	return new Promise(function(resolve,reject) {
-		var req = new XMLHttpRequest();
+	return new Promise((resolve,reject)=> {
+		const req = new XMLHttpRequest();
 		req.open("get",src,true) ;
 		req.responseType = (opt && opt.type)?opt.type:"text" ;
-		req.onload = function() {
-			if(this.status==200) {
-				resolve(this.response) ;
+		req.onload = ()=> {
+			if(req.status==200) {
+				resolve(req.response) ;
 			} else {
-				reject("Ajax error:"+this.statusText) ;					
+				reject("Ajax error:"+req.statusText) ;					
 			}
 		}
-		req.onerror = function() {
-			reject("Ajax error:"+this.statusText)
+		req.onerror = ()=> {
+			reject("Ajax error:"+req.statusText)
 		}
 		req.send() ;
 	})
 }
 WWG.prototype.loadImageAjax = function(src) {
-	var self = this ;
-	return new Promise(function(resolve,reject){
-		self.loadAjax(src,{type:"blob"}).then(function(b){
-			var timg = new Image ;
+	return new Promise((resolve,reject)=>{
+		this.loadAjax(src,{type:"blob"}).then((b)=>{
+			const timg = new Image ;
 			const url = URL.createObjectURL(b);
-			timg.onload = function() {
+			timg.onload = ()=> {
 				URL.revokeObjectURL(url)
 				resolve(timg) ;
 			}
 			timg.src = url
-		}).catch(function(err){
+		}).catch((err)=>{
+			console.log(err)
 			resolve(null) ;
 		})
 	})
@@ -137,9 +138,10 @@ WWG.prototype.Render = function(wwg) {
 	this.wwg = wwg ;
 	this.gl = wwg.gl ;
 	this.env = {} ;
-	this.obuf = [] ;
+//	this.obuf = [] ;
 	this.modelCount = 0 ;
-	this.modelHash = {} ;
+	this.modelId = 0 
+//	this.modelHash = {} ;
 }
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 	if(uni.pos==null) return 
@@ -224,6 +226,7 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			if(typeof value == 'string') value = this.getTexIndex(value)
 			this.gl.activeTexture(this.gl.TEXTURE0+uni.texunit);
 			this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[value]);
+			if(this.data.texture[value]==undefined) break ;
 			if(this.data.texture && this.data.texture[value].video) {
 				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.data.texture[value].video);	
 			}
@@ -233,61 +236,66 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 }
 
 WWG.prototype.Render.prototype.setShader = function(data) {
-	var tu = 0 ;
+	let tu = 0 ;
 	function parse_shader(src) {
-		var l = src.split("\n") ;
-		var uni = [] ;
-		var att = [] ;
+		const l = src.split("\n") ;
+		const uni = [] ;
+		const att = [] ;
+		const def = {}
 
 		for(i=0;i<l.length;i++) {
-			var ln = l[i] ;
-			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s*([0-9a-z_]+)(\[[^\]]+\])?/i)) {
-				var u = {type:RegExp.$1,name:RegExp.$2} ;
+			let ln = l[i] ;
+			if( ln.match(/^\s*#define\s*([^\s]+)\s+([^\s]+)/)) {
+				def[RegExp.$1.trim()] = RegExp.$2.trim()
+			}
+			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s+([0-9a-z_]+)(\[[^\]]+\])?/i)) {
+				let u = {type:RegExp.$1,name:RegExp.$2} ;
 				if(RegExp.$3!="") {
 					u.type = u.type+"v" ;
-					u.dim = parseInt(RegExp.$3.substr(1)) ;
+					let k = RegExp.$3.substr(1,RegExp.$3.length-2).trim()
+					u.dim = parseInt(k) ;
+					if(isNaN(u.dim)) u.dim = def[k]
 				}
 				if(u.type=="sampler2D") u.texunit = tu++ ;
 				uni.push(u) ;
 			}
-			if( ln.match(/^\s*(?:attribute|in)\s*([0-9a-z]+)\s*([0-9a-z_]+)/i)) {
+			if( ln.match(/^\s*(?:attribute|in)\s+([0-9a-z]+)\s*([0-9a-z_]+)/i)) {
 				att.push( {type:RegExp.$1,name:RegExp.$2}) ;
 			}
 		}
 		return {uni:uni,att:att} ;
 	}
 
-	var gl = this.gl ;
-	var self = this ;
-	return new Promise(function(resolve,reject) {
+	const gl = this.gl ;
+	return new Promise((resolve,reject)=> {
 		if(!data.vshader) { reject("no vshader") ;return false;}
 		if(!data.fshader) { reject("no fshader") ;return false;}
-		var vss ;
-		var fss ;
-		var pr = [] ;
+		let vss ;
+		let fss ;
+		let pr = [] ;
 		if(data.vshader.text ) vss = data.vshader.text ;
 		else if(data.vshader.src) {
-			pr.push( self.wwg.loadAjax(data.vshader.src).then(function(result) {
+			pr.push( this.wwg.loadAjax(data.vshader.src).then((result)=> {
 				vss = result ;
 				resolve() ;
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			}))
 		}
 		if(data.fshader.text ) fss = data.fshader.text ;
 		else if(data.fshader.src) {
-			pr.push( self.wwg.loadAjax(data.fshader.src).then(function(result) {
+			pr.push( this.wwg.loadAjax(data.fshader.src).then((result)=> {
 				fss = result ;
 				resolve() ;
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			}))
 		}
-		Promise.all(pr).then(function(res) {
+		Promise.all(pr).then((res)=> {
 //			console.log(vss) ;
 //			console.log(fss) ;
-			var ret = {} ;
-			var vshader = gl.createShader(gl.VERTEX_SHADER);
+			let ret = {} ;
+			let vshader = gl.createShader(gl.VERTEX_SHADER);
 			gl.shaderSource(vshader, vss);
 			gl.compileShader(vshader);
 			if(!gl.getShaderParameter(vshader, gl.COMPILE_STATUS)) {
@@ -295,7 +303,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			}
 			ret.vshader = vshader ;
 		
-			var fshader = gl.createShader(gl.FRAGMENT_SHADER);
+			let fshader = gl.createShader(gl.FRAGMENT_SHADER);
 			gl.shaderSource(fshader, fss);
 			gl.compileShader(fshader);
 			if(!gl.getShaderParameter(fshader, gl.COMPILE_STATUS)) {
@@ -303,7 +311,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			}
 			ret.fshader = fshader ;
 			
-			var program = gl.createProgram();
+			let program = gl.createProgram();
 			gl.attachShader(program, vshader);
 			gl.attachShader(program, fshader);
 			gl.linkProgram(program);
@@ -313,44 +321,44 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			ret.program = program ;
 			gl.useProgram(program);
 		
-			var vr = parse_shader(vss) ;	
+			let vr = parse_shader(vss) ;	
 //			console.log(vr) ;
 			ret.vs_att = {} ;	
-			for(var i in vr.att) {
+			for(let i in vr.att) {
 				vr.att[i].pos = gl.getAttribLocation(program,vr.att[i].name) ;
 				ret.vs_att[vr.att[i].name] = vr.att[i] ;
 			}
 			ret.vs_uni = {} ;
-			for(var i in vr.uni) {
+			for(let i in vr.uni) {
 				vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
 				vr.uni[i].cache = null 
 				ret.vs_uni[vr.uni[i].name] = vr.uni[i] ;
 			}
 		
-			var fr = parse_shader(fss) ;	
+			let fr = parse_shader(fss) ;	
 //			console.log(fr);	
 			ret.fs_uni = {} ;
-			for(var i in fr.uni) {
+			for(let i in fr.uni) {
 				fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
 				fr.uni[i].cache = null 
 				ret.fs_uni[fr.uni[i].name] = fr.uni[i] ;
 			}
 			resolve(ret) ;
-		}).catch(function(err){
+		}).catch((err)=>{
 			reject(err) ;
 		}) ;
 	})
 }
 WWG.prototype.Render.prototype.setUniValues = function(data) {
 	if(data.vs_uni) {
-		for(var i in data.vs_uni) {
+		for(let i in data.vs_uni) {
 			if(this.vs_uni[i]) {
 				this.setUnivec(this.vs_uni[i], data.vs_uni[i]) ;
 			}  ;
 		}
 	}
 	if(data.fs_uni) {
-		for(var i in data.fs_uni) {
+		for(let i in data.fs_uni) {
 			if(this.fs_uni[i]) {
 				this.setUnivec(this.fs_uni[i], data.fs_uni[i]) ;
 			}  ;
@@ -360,17 +368,20 @@ WWG.prototype.Render.prototype.setUniValues = function(data) {
 }
 WWG.prototype.Render.prototype.genTex = function(img,option) {
 	if(!option) option={flevel:0} ;
-	var gl = this.gl ;
-	var tex = gl.createTexture();
+	let gl = this.gl ;
+	const formatstr = {"rgb":gl.RGB,"gray":gl.LUMINANCE,"grayalpha":gl.LUMINANCE_ALPHA}
+	let format = (option.format && formatstr[option.format])?formatstr[option.format]:gl.RGBA
+
+	let tex = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tex);
 	if(option.isarray) {
 		if(img instanceof Float32Array ) 
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, option.width,option.height,0,gl.RGBA, gl.FLOAT, img,0);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, option.width,option.height,0,format, gl.FLOAT, img,0);
 		else 
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,gl.RGBA, gl.UNSIGNED_BYTE, img);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,format, gl.UNSIGNED_BYTE, img);
 		 option.flevel = 0 
 		 option.nomipmap = true
-	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, img);
+	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, format, format,gl.UNSIGNED_BYTE, img);
 
 	if(!option.nomipmap) gl.generateMipmap(gl.TEXTURE_2D);
 	//NEAREST LINEAR NEAREST_MIPMAP_NEAREST NEAREST_MIPMAP_LINEAR LINEAR_MIPMAP_NEAREST LINEAR_MIPMAP_LINEAR
@@ -406,29 +417,28 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 }
 WWG.prototype.Render.prototype.loadTex = function(tex) {
 //	console.log( tex);
-	var self = this ;
-	var gl = this.gl ;
+	let gl = this.gl ;
 
-	return new Promise(function(resolve,reject) {
+	return new Promise((resolve,reject)=> {
 		if(tex.src) {
 			if(tex.opt && tex.opt.cors) {
-				self.wwg.loadImageAjax(tex.src).then(function(img) {
-					resolve( self.genTex(img,tex.opt)) ;
+				this.wwg.loadImageAjax(tex.src).then((img)=>{
+					resolve( this.genTex(img,tex.opt)) ;
 				}).catch((err)=>reject(err));
 			} else {
-				var img = new Image() ;
-				img.onload = function() {
-					resolve( self.genTex(img,tex.opt) ) ;
+				let img = new Image() ;
+				img.onload = ()=> {
+					resolve( this.genTex(img,tex.opt) ) ;
 				}
-				img.onerror = function() {
+				img.onerror = ()=> {
 					reject("cannot load image") ;
 				}
 				img.src = tex.src ;
 			}
 		} else if(tex.img instanceof Image) {
-			resolve( self.genTex(tex.img,tex.opt) ) 
+			resolve( this.genTex(tex.img,tex.opt) ) 
 		} else if(tex.video ) {
-			resolve( self.genTex(tex.video,{nomipmap:true,flevel:0,repeat:2}) ) 
+			resolve( this.genTex(tex.video,{nomipmap:true,flevel:0,repeat:2}) ) 
 		} else if(tex.buffer) {
 			if(tex.mrt!=undefined) {
 				resolve( tex.buffer.fb.t[tex.mrt])
@@ -437,23 +447,26 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 		} else if(tex.texture) {
 			resolve( tex.texture) ;
 		} else if(tex.canvas) {
-			resolve( self.genTex(tex.canvas,tex.opt)) ;
+			resolve( this.genTex(tex.canvas,tex.opt)) ;
 		} else if(tex.array) {
 			tex.opt.isarray = true ;
-			resolve( self.genTex(tex.array,tex.opt)) ;
+			resolve( this.genTex(tex.array,tex.opt)) ;
 		} else {
 			reject("no image")
 		}
 	})
 }
 WWG.prototype.Render.prototype.getTexIndex = function(name) {
-	for(var i=0;i<this.data.texture.length;i++) {
+	if(!this.data.texture) return null 
+	let i 
+	for(i=0;i<this.data.texture.length;i++) {
 		if(this.data.texture[i].name==name) break;
 	}
-	return i
+	return (i==this.data.texture.length)?null:i
 }
 WWG.prototype.Render.prototype.addTex = function(texdata) {
 	return new Promise((resolve,reject)=>{
+		if(!this.data.texture) this.data.texture = []
 		this.data.texture.push(texdata)
 		this.loadTex(texdata).then((tex)=>{
 			this.texobj.push(tex) ;
@@ -463,33 +476,34 @@ WWG.prototype.Render.prototype.addTex = function(texdata) {
 }
 WWG.prototype.Render.prototype.removeTex = function(tex) {
 	if(typeof tex == "string") tex = this.getTexIndex(tex) 
+	if(tex === null ) return 
 	this.data.texture[tex] = null
 	this.texobj[tex] = null 
 }
 
 WWG.prototype.Render.prototype.frameBuffer = function(os) {
-	var gl = this.gl ;
+	let gl = this.gl ;
 	console.log("create framebuffer "+os.width+"x"+os.height) ;
-	var mrt = os.mrt ;
-	var ttype = gl.UNSIGNED_BYTE ;
-	var tfilter = gl.LINEAR ;
+	let mrt = os.mrt ;
+	let ttype = gl.UNSIGNED_BYTE ;
+	let tfilter = gl.LINEAR ;
 	if(this.wwg.ext_ftex && os.float ) {
 		ttype = gl.FLOAT ;
 		tfilter = gl.NEAREST ;
 		console.log("use float tex") ;
 	}
-	var fblist = [] ;
-	var frameBuffer = gl.createFramebuffer();
+	let fblist = [] ;
+	let frameBuffer = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
 	//depth
-	var renderBuffer = gl.createRenderbuffer();
+	let renderBuffer = gl.createRenderbuffer();
 	gl.bindRenderbuffer(gl.RENDERBUFFER, renderBuffer);
 	gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, os.width, os.height);	
 	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderBuffer);
 	//texture
 	if(mrt) {
-		var fTexture = [] ;
-		for(var i=0;i<mrt;i++) {
+		let fTexture = [] ;
+		for(let i=0;i<mrt;i++) {
 			fTexture[i] = gl.createTexture();
 			gl.bindTexture(gl.TEXTURE_2D, fTexture[i]);
 			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, os.width, os.height, 0, gl.RGBA, ttype, null);
@@ -499,7 +513,7 @@ WWG.prototype.Render.prototype.frameBuffer = function(os) {
 			fblist.push(this.wwg.mrt_att + i)		
 		}
 	} else {
-		var fTexture = gl.createTexture()
+		let fTexture = gl.createTexture()
 		gl.bindTexture(gl.TEXTURE_2D, fTexture);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, os.width, os.height, 0, gl.RGBA, ttype, null);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, tfilter);
@@ -510,73 +524,73 @@ WWG.prototype.Render.prototype.frameBuffer = function(os) {
 	gl.bindRenderbuffer(gl.RENDERBUFFER, null);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);	
 
-	var ret = {width:os.width,height:os.height,f:frameBuffer,d:renderBuffer,t:fTexture}
+	let ret = {ox:os.offsetX,oy:os.offsetY,width:os.width,height:os.height,f:frameBuffer,d:renderBuffer,t:fTexture}
 	if(mrt) ret.fblist = fblist ;
 	return ret ;
 }
 WWG.prototype.Render.prototype.setRender =function(data) {
-	var gl = this.gl ;
+	let gl = this.gl ;
 	this.env = data.env ;
 	this.data = data ;
-	var self = this ;
 
-	return new Promise(function(resolve,reject) {
+	return new Promise((resolve,reject)=> {
 		if(!gl) { reject("no init") ;return ;}
-		var pr = [] ;
-		self.setShader({fshader:data.fshader,vshader:data.vshader}).then(function(ret) {
+		let pr = [] ;
+		this.setShader({fshader:data.fshader,vshader:data.vshader}).then((ret)=> {
 			//set program
-			self.vshader = ret.vshader ;
-			self.fshader = ret.fshader ;
-			self.program = ret.program ;
-			self.vs_uni = ret.vs_uni ;
-			self.vs_att = ret.vs_att ;
-			self.fs_uni = ret.fs_uni ;
+			this.vshader = ret.vshader ;
+			this.fshader = ret.fshader ;
+			this.program = ret.program ;
+			this.vs_uni = ret.vs_uni ;
+			this.vs_att = ret.vs_att ;
+			this.fs_uni = ret.fs_uni ;
 			
 			// load textures
 			if(data.texture) {
-				for(var i=0;i<data.texture.length;i++) {
-					pr.push(self.loadTex( data.texture[i])) ;
+				for(let i=0;i<data.texture.length;i++) {
+					pr.push(this.loadTex( data.texture[i])) ;
 				}
 			}
 
-			Promise.all(pr).then(function(result) {
+			Promise.all(pr).then((result)=> {
 //				console.log(result) ;
-				self.texobj = result ;
+				this.texobj = result ;
 				// set initial values
-				if(!self.setUniValues(data)) {
+				if(!this.setUniValues(data)) {
 					reject("no uniform name") ;
 					return ;
 				}
 				
-				if(self.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
-				if(self.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
-				if(!self.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
+				if(this.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+				if(this.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
+				if(!this.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
 		
 				//set model 
-				for(var i =0;i<data.model.length;i++) {
-					self.obuf[i] = self.setObj( data.model[i],true) ;
-					if(data.model[i].name) self.modelHash[data.model[i].name] = i ;
+				for(let i =0;i<data.model.length;i++) {
+					data.model[i].id = ++this.modelId 
+					data.model[i].obuf = this.setObj( data.model[i],true) ;
+//					if(data.model[i].name) this.modelHash[data.model[i].name] = data.model[i] ;
 				}
-				self.modelCount = data.model.length ;
-//				console.log(self.obuf);
+				this.modelCount = data.model.length ;
+//				console.log(this.obuf);
 				
-				if(self.env.offscreen) {// renderbuffer 
-					if(self.env.offscreen.mrt) { //MRT
-						if(!self.wwg.ext_mrt) reject("MRT not support") ;
+				if(this.env.offscreen) {// renderbuffer 
+					if(this.env.offscreen.mrt) { //MRT
+						if(!this.wwg.ext_mrt) reject("MRT not support") ;
 					}
-					self.fb = self.frameBuffer(self.env.offscreen) ;	
+					this.fb = this.frameBuffer(this.env.offscreen) ;	
 				}
-				resolve(self) ;
+				resolve(this) ;
 				
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			})
-		}).catch(function(err) {reject(err);})
+		}).catch((err)=> {reject(err);})
 	});
 }
 
 WWG.prototype.Render.prototype.clear = function() {
-	var cc = this.env.clear_color ;
+	let cc = this.env.clear_color ;
 	this.gl.clearColor(cc[0],cc[1],cc[2],cc[3]);
 	this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 }
@@ -594,63 +608,64 @@ WWG.prototype.Render.prototype.i32Array = function(ar) {
 	else return new Uint32Array(ar) ;
 }
 WWG.prototype.Render.prototype.setObj = function(obj,flag) {
-	var gl = this.gl
-	var geo = obj.geo ;
-	var inst = obj.inst ;
-	ret = {} ;
-	
+	let gl = this.gl
+	let geo = obj.geo ;
+	let inst = obj.inst ;
+	let ret = {} ;
+	let vao
 	if(this.wwg.ext_vao) {
-		var vao = this.wwg.vao_create() ;
+		vao = this.wwg.vao_create() ;
 		this.wwg.vao_bind(vao);
 		ret.vao = vao ;
 	}
 	
-	var vbo = gl.createBuffer() 
+	let vbo = gl.createBuffer() 
 	gl.bindBuffer(gl.ARRAY_BUFFER, vbo) ;
 
-	var tl = 0 ;
-	var ats = [] ;
-	for(var i=0;i<geo.vtx_at.length;i++) {
+	let tl = 0 ;
+	let ats = [] ;
+	for(let i=0;i<geo.vtx_at.length;i++) {
 		ats.push( this.vs_att[geo.vtx_at[i]] ) ;
 		tl += this.wwg.vsize[this.vs_att[geo.vtx_at[i]].type] ;
 	}
 
 	ret.ats = ats ;
 	ret.tl = tl ;
-	var ofs = 0 ;
-	for(var i in this.vs_att ) {
-		gl.disableVertexAttribArray(this.vs_att[i].pos);
+	let ofs = 0 ;
+	for(let i in this.vs_att ) {
+		if(this.vs_att[i].pos>=0) gl.disableVertexAttribArray(this.vs_att[i].pos);
 	}
-	for(var i=0;i<ats.length;i++) {
-		var s = this.wwg.vsize[ats[i].type] ;
+	for(let i=0;i<ats.length;i++) {
+		let s = this.wwg.vsize[ats[i].type] ;
 		gl.enableVertexAttribArray(this.vs_att[ats[i].name].pos);
 		gl.vertexAttribPointer(this.vs_att[ats[i].name].pos, s, gl.FLOAT, false, tl*4, ofs);
 		ofs += s*4 ;	
 	} 	
 	ret.vbo = vbo ;
-
+	let ibo
 	if(geo.idx) {
-		var ibo = gl.createBuffer() ;
+		ibo = gl.createBuffer() ;
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo) ;
 		ret.ibo = ibo ;
 	}
+	let ibuf 
 	if(inst) {
-		var ibuf = gl.createBuffer() 
+		ibuf = gl.createBuffer() 
 		gl.bindBuffer(gl.ARRAY_BUFFER, ibuf) ;
-		var tl = 0 ;
-		var ats = [] ;
-		for(var i=0;i<inst.attr.length;i++) {
+		let tl = 0 ;
+		let ats = [] ;
+		for(let i=0;i<inst.attr.length;i++) {
 			ats.push( this.vs_att[inst.attr[i]] ) ;
 			tl += this.wwg.vsize[this.vs_att[inst.attr[i]].type] ;
 		}
 		tl = tl*4 ;
 		ret.iats = ats ;
 		ret.itl = tl ;
-		var ofs = 0 ;
-		for(var i=0;i<ats.length;i++) {
-			var divisor = (inst.divisor)?inst.divisor[i]:1 ;
-			var s = this.wwg.vsize[ats[i].type] ;
-			var pos = this.vs_att[ats[i].name].pos
+		let ofs = 0 ;
+		for(let i=0;i<ats.length;i++) {
+			let divisor = (inst.divisor)?inst.divisor[i]:1 ;
+			let s = this.wwg.vsize[ats[i].type] ;
+			let pos = this.vs_att[ats[i].name].pos
 			gl.enableVertexAttribArray(pos);
 			gl.vertexAttribPointer(pos, s, gl.FLOAT, false, tl, ofs);
 			ofs += s*4 ;
@@ -688,30 +703,49 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 		
 	return ret ;
 }
+WWG.prototype.Render.prototype.getModels = function() {
+	return this.data.model.filter((m)=>(m!==null))	
+}
 WWG.prototype.Render.prototype.getModelIdx = function(name) {
-	var idx 
+	let idx = false 
 	if(typeof name != 'string') idx = parseInt(name) ;
-	else idx = this.modelHash[name] ;
+	else {
+		for(let i=0;i<this.data.model.length;i++) 	{
+			if(this.data.model[i]===null) continue 
+			if(name==this.data.model[i].name) {idx = i ;break }
+		}
+	}
 	return idx ;	
 }
 // add model
 WWG.prototype.Render.prototype.addModel = function(model) {
+	let idx = false
+	if(model.name) idx = this.getModelIdx(model.name)
+	if(idx!==false ) {
+		this.data.model[idx] = model ;
+		this.data.model[idx].obuf = this.setObj(model,true) ;
+		return 
+	}
+	model.id = ++this.modelId
 	this.data.model.push(model) ;
-	this.obuf.push(this.setObj(model,true)) ;
+	this.data.model[this.data.model.length-1].obuf = this.setObj(model,true) ;
 	this.modelCount++
-	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
+//	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
 }
 // remove model
 WWG.prototype.Render.prototype.removeModel = function(model) {
 	let mi = this.getModelIdx(model) 
+	if(mi===false) return false 
+//	delete this.modelHash[this.data.model[mi].name] 
+	this.data.model[mi].obuf = null 
 	this.data.model[mi] = null 
-	this.obuf[mi] = null 
 	this.modelCount--  
+	return true 
 }
 // update attribute buffer 
-WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true) {
-	var idx = this.getModelIdx(name) ;
-	var obuf = this.obuf[idx] ;
+WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,sub=null) {
+	let idx = this.getModelIdx(name) ;
+	let obuf = this.data.model[idx].obuf ;
 	switch(mode) {
 		case "vbo":	
 			this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.vbo) ;
@@ -720,36 +754,45 @@ WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true
 			this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.inst) ;
 			break ;
 	}
-	if(subflag) 
+	if(sub) 
+		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, sub.dofs*4, this.f32Array(buf),sub.sofs,sub.count)	
+	else 
 		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.f32Array(buf))	
-	else
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.f32Array(buf),this.gl.DYNAMIC_DRAW ) ;
+
 }
 WWG.prototype.Render.prototype.updateModelInstance = function(name,buf,count) {
-	var idx = this.getModelIdx(name) ;
-	var obuf = this.obuf[idx] ;
+	let idx = this.getModelIdx(name) ;
+	let obuf = this.data.model[idx].obuf ;
 	this.data.model[idx].inst.count = count ;
 	this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.inst) ; 
 //		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.f32Array(buf))	
 		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.f32Array(buf),this.gl.DYNAMIC_DRAW ) ;
 }
 WWG.prototype.Render.prototype.getModelData =function(name) {
-	var idx = this.getModelIdx(name) ;
+	let idx = this.getModelIdx(name) ;
 	return this.data.model[idx] ;
 }
 // update texture 
 WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
 	if(typeof idx == 'string') idx = this.getTexIndex(idx)
-	let tdat = this.data.texture[idx]
+	var tdat = this.data.texture[idx]
 	this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[idx]);
 
 	if(tdat.array) {
 		if(!opt) 
-			this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA16F, 
-				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.FLOAT, tex);	
+			if(tdat.array instanceof Float32Array ) 
+				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA16F, 
+				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.FLOAT, tex);
+			else
+				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, 
+				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);	
 		else 
-			this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
+			if(tdat.array instanceof Float32Array ) 
+				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
 				opt.sx,opt.sy,opt.width,opt.height,this.gl.RGBA, this.gl.FLOAT, tex,opt.ofs);
+			else
+				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
+				opt.sx,opt.sy,opt.width,opt.height,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex,opt.ofs);
 	} else {
 		if(!opt) {
 			this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
@@ -760,17 +803,17 @@ WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
 				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy , this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
 		}
 	}
-	if(this.data.texture[idx].opt && !this.data.texture[idx].opt.nomipmap) this.gl.generateMipmap(this.gl.TEXTURE_2D);
+	if(tdat.opt && !tdat.opt.nomipmap) this.gl.generateMipmap(this.gl.TEXTURE_2D);
 }
 //update uniform values
 WWG.prototype.Render.prototype.pushUniValues = function(u) {
 	if(u.vs_uni) {
-		for(var i in u.vs_uni) {
+		for(let i in u.vs_uni) {
 			this.update_uni.vs_uni[i] = u.vs_uni[i] ;
 		}
 	}
 	if(u.fs_uni) {
-		for(var i in u.fs_uni) {
+		for(let i in u.fs_uni) {
 			this.update_uni.fs_uni[i] = u.fs_uni[i] ;
 		}
 	}
@@ -788,20 +831,22 @@ WWG.prototype.Render.prototype.updateUniValues = function(u) {
 WWG.prototype.Render.prototype.draw = function(update,cls) {
 //console.log("draw");
 
-	var gl = this.gl ;
+	let gl = this.gl ;
 	gl.useProgram(this.program);
 	if(this.env.offscreen) {// renderbuffer 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb.f);
 		if(this.env.offscreen.mrt) this.wwg.mrt_draw(this.fb.fblist);
-		gl.viewport(0,0,this.fb.width,this.fb.height) ;
+		gl.viewport(fb.offsetX,fb.offsetY,this.fb.width,this.fb.height) ;
 	}
 	if(!cls) this.clear() ;
-	for(var b=0;b<this.obuf.length;b++) {
-		if(this.obuf[b]==null) continue ;
-		var cmodel = this.data.model[b] ;
+	let models = this.data.model
+	for(let b=0;b<models.length;b++) {
+		if(models[b]===null) continue 
+		let cmodel = models[b] ;
 		if(cmodel.hide) continue ;
-		var geo = cmodel.geo ;
+		if(cmodel.obuf==null) continue ;
 
+		let geo = cmodel.geo ;
 		this.updateUniValues(0) ;
 		this.pushUniValues(this.data) ;
 		this.pushUniValues(cmodel);
@@ -811,37 +856,37 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			for(let i=0;i<update.length;i++) {
 				this.pushUniValues(update[i]) ;
 				if(update[i].model) {
-					var model =update[i].model[b] ;
+					let model =update[i].model[b] ;
 					if(model) this.pushUniValues(model) ;
 				}
 			}
 		}
 		this.updateUniValues(1)
 
-		var obuf = this.obuf[b] ;
-		var ofs = (geo.ofs>0)?geo.ofs:0 ;
+		let obuf = cmodel.obuf ;
+		let ofs = (geo.ofs>0)?geo.ofs:0 ;
 		if(this.wwg.ext_vao)  this.wwg.vao_bind(obuf.vao);
 		else {
 			gl.bindBuffer(gl.ARRAY_BUFFER, obuf.vbo) ;
-			var aofs = 0 ;
-			for(var i in this.vs_att ) {
+			let aofs = 0 ;
+			for(let i in this.vs_att ) {
 				gl.disableVertexAttribArray(this.vs_att[i].pos);
 			}
-			for(var i=0;i<obuf.ats.length;i++) {
-				var s = this.wwg.vsize[obuf.ats[i].type] ;
+			for(let i=0;i<obuf.ats.length;i++) {
+				let s = this.wwg.vsize[obuf.ats[i].type] ;
 				gl.enableVertexAttribArray(this.vs_att[obuf.ats[i].name].pos);
 				gl.vertexAttribPointer(this.vs_att[obuf.ats[i].name].pos, s, gl.FLOAT, false, obuf.tl*4, aofs);
 				aofs += s*4 ;	
 			}
-			if(this.obuf[b].ibo) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.obuf[b].ibo) ;
-			if(this.obuf[b].inst) {
-				var inst = cmodel.inst ;
-				gl.bindBuffer(gl.ARRAY_BUFFER, this.obuf[b].inst) ;
-				var aofs = 0 ;
-				for(var i=0;i<obuf.iats.length;i++) {
-					var divisor = (inst.divisor)?inst.divisor[i]:1 ;
-					var s = this.wwg.vsize[obuf.iats[i].type] ;
-					var pos = this.vs_att[obuf.iats[i].name].pos
+			if(obuf.ibo) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obuf.ibo) ;
+			if(obuf.inst) {
+				let inst = cmodel.inst ;
+				gl.bindBuffer(gl.ARRAY_BUFFER, obuf.inst) ;
+				let aofs = 0 ;
+				for(let i=0;i<obuf.iats.length;i++) {
+					let divisor = (inst.divisor)?inst.divisor[i]:1 ;
+					let s = this.wwg.vsize[obuf.iats[i].type] ;
+					let pos = this.vs_att[obuf.iats[i].name].pos
 					gl.enableVertexAttribArray(pos);
 					gl.vertexAttribPointer(pos, s, gl.FLOAT, false, obuf.itl, aofs);
 					aofs += s*4 ;
@@ -851,7 +896,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		}
 		if(cmodel.preFunction) {
 			
-			cmodel.preFunction(gl,cmodel,this.obuf[b]) ;
+			cmodel.preFunction(gl,cmodel,obuf) ;
 		}
 		if(cmodel.blend!==undefined) {
 			gl.enable(gl.BLEND) ;
@@ -860,14 +905,14 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(cmodel.cull!==undefined) {
 			if(cmodel.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
 		}
-		var gmode = this.wwg.dmodes[geo.mode]
+		let gmode = this.wwg.dmodes[geo.mode]
 		if(gmode==undefined) {
 				console.log("Error: illigal draw mode") ;
 				return false ;
 		}
 		if(cmodel.inst) {
 			if(geo.idx) this.wwg.inst_draw(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
-			else this.wwg.inst_drawa(gmode, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
+			else this.wwg.inst_drawa(gmode, ofs,(geo.count>0)?geo.count:geo.vtx.length/obuf.tl, cmodel.inst.count);
 		} else {
 			if(geo.idx) gl.drawElements(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs);
 			else gl.drawArrays(gmode, ofs,
@@ -907,6 +952,9 @@ class WWModel {
 	let wy = (param.wy)?param.wy:1.0 ;
 	let wz = (param.wz)?param.wz:1.0 ;
 	let div = (param.div)?param.div:10 ;
+	let divx = (param.divx)?param.divx:div ;
+	let divy = (param.divy)?param.divy:div ;
+	let divz = (param.divz)?param.divz:div ;
 	let ninv = (param.ninv)?-1:1 ;
 	let p = [] ;
 	let n = [] ;
@@ -1015,7 +1063,7 @@ class WWModel {
 		}	
 		break ;
 	case "cylinder":
-		let divy = (param.divy)?param.divy:1
+		divy = (param.divy)?param.divy:1
 		for(let i = 0 ; i <= div ; ++i) {
 			let v = i / (0.0+div);
 			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
@@ -1092,7 +1140,7 @@ class WWModel {
 		for(let j =0; j < div-1 ;j++) {
 			s.push([j,j+1,div]) ;
 		}
-		s.push([j,0,div])
+		s.push([div-1,0,div])
 		break; 
 	case "plane":
 		if(!param.wz)  {
@@ -1163,7 +1211,7 @@ class WWModel {
 				nx:0, ny:1, nz:0,
 				mu:u, mv:v }
 			return r ;
-		},{start:1.0,end:0,div:div},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		},{start:1.0,end:0,div:divx},{start:0,end:1,div:divz},{ninv:param.ninv}) ;
 		return this ;		
 		break ;
 	case "torus":
@@ -1191,7 +1239,7 @@ class WWModel {
 				mu:u, mv:v }
 			return r ;			
 			
-		},{start:0,end:1.0,div:div*2},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		},{start:0,end:1.0,div:divx*2},{start:0,end:1,div:divy},{ninv:param.ninv}) ;
 		return this ;
 	case "polyhedron":
 
@@ -1389,8 +1437,8 @@ objModel(addvec,mode) {
 		}
 		ii += p.length ;
 	}
-	console.log(" vert:"+v.length);
-	console.log(" poly:"+ibuf.length/3);
+//	console.log(" vert:"+v.length);
+//	console.log(" poly:"+ibuf.length/3);
 	for(let i=0,l=v.length;i<l;i++) {
 		vbuf.push( parseFloat( v[i][0]) ) ;
 		vbuf.push( parseFloat( v[i][1]) ) ;
@@ -1608,10 +1656,9 @@ static loadLines(path,cb,lbufsize) {
 }
 // load .obj file
 async loadObj(path,scale) {
-	let self = this ;
 	if(!scale) scale=1.0 ;
-	return new Promise(function(resolve,reject) {
-		self.loadAjax(path).then(function(data) {
+	return new Promise((resolve,reject)=> {
+		this.loadAjax(path).then((data)=> {
 //			console.log(data) ;
 			let l = data.split("\n") ;
 			let v = [];
@@ -1646,27 +1693,27 @@ async loadObj(path,scale) {
 					x.push(ix) ;
 				}
 			}
-			self.obj_v = [] ;
-			if(c.length>0) self.obj_c = [] 
-			self.obj_i =x ;
-			if(n.length>0) self.obj_n = [] ;
-			if(t.length>0) self.obj_t = [] ;
+			this.obj_v = [] ;
+			if(c.length>0) this.obj_c = [] 
+			this.obj_i =x ;
+			if(n.length>0) this.obj_n = [] ;
+			if(t.length>0) this.obj_t = [] ;
 			if(x.length>0) {
 				for(let i in xi) {
 					let si = i.split("/") ;
 					let ind = xi[i] ;
-					self.obj_v[ind] = v[si[0]-1] ;
-					if(c.length>0) self.obj_c[ind] = c[si[0]-1]  
-					if(t.length>0) self.obj_t[ind] = t[si[1]-1] ;
-					if(n.length>0) self.obj_n[ind] = n[si[2]-1] ;
+					this.obj_v[ind] = v[si[0]-1] ;
+					if(c.length>0) this.obj_c[ind] = c[si[0]-1]  
+					if(t.length>0) this.obj_t[ind] = t[si[1]-1] ;
+					if(n.length>0) this.obj_n[ind] = n[si[2]-1] ;
 				}
 			} else {
-				self.obj_v = v 
-				if(c.length>0) self.obj_c = c
-				if(n.length>0) self.obj_n = n
+				this.obj_v = v 
+				if(c.length>0) this.obj_c = c
+				if(n.length>0) this.obj_n = n
 			}
-			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+self.obj_v.length) ;
-			resolve(self) ;
+			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+this.obj_v.length) ;
+			resolve(this) ;
 		}).catch(function(err) {
 			reject(err) ;
 		})
@@ -2441,14 +2488,14 @@ CanvasMatrix4.prototype.lookat = function(eyex, eyey, eyez, centerx, centery, ce
     }
 
     // X vector = Y cross Z
-    xx =  upy * zz - upz * zy;
-    xy = -upx * zz + upz * zx;
-    xz =  upx * zy - upy * zx;
+    var xx =  upy * zz - upz * zy;
+    var xy = -upx * zz + upz * zx;
+    var xz =  upx * zy - upy * zx;
 
     // Recompute Y = Z cross X
-    yx = zy * xz - zz * xy;
-    yy = -zx * xz + zz * xx;
-    yz = zx * xy - zy * xx;
+    var yx = zy * xz - zz * xy;
+    var yy = -zx * xz + zz * xx;
+    var yz = zx * xy - zy * xx;
 
     // cross product gives area of parallelogram, which is < 1.0 for
     // non-perpendicular unit-length vectors; so normalize x, y here
@@ -2695,7 +2742,119 @@ CanvasMatrix4.qMult = function(q1,q2) {
 }
 	
 
-//mouse and touch event handler
+class Vector extends Array {
+	constructor(...args) {
+		let v = args 
+		if(Array.isArray(args[0])) v = args[0]
+		super(...v)
+	}
+	set x(v) {this[0] = v}
+	set y(v) {this[1] = v}
+	set z(v) {this[2] = v}
+	set w(v) {this[3] = v}
+	set r(v) {this[0] = v}
+	set g(v) {this[1] = v}
+	set b(v) {this[2] = v}
+	set a(v) {this[3] = v}
+	get x() { return this[0]}
+	get y() { return this[1]}
+	get z() { return this[2]}
+	get w() { return this[3]}
+	get r() { return this[0]}
+	get g() { return this[1]}
+	get b() { return this[2]}
+	get a() { return this[3]}
+//retrun new vector
+	get xy() { return new Vector(this[0],this[1])}
+	get yx() { return new Vector(this[1],this[0])}
+	get xz() { return new Vector(this[0],this[2])}
+	get zx() { return new Vector(this[2],this[0])}
+	get yz() { return new Vector(this[1],this[2])}
+	get zy() { return new Vector(this[2],this[1])}
+	get xyz() { return new Vector(this[0],this[1],this[2])}
+	get xzy() { return new Vector(this[0],this[2],this[1])}
+	get yxz() { return new Vector(this[1],this[0],this[2])}
+	get yzx() { return new Vector(this[1],this[2],this[0])}
+	get zxy() { return new Vector(this[2],this[0],this[1])}
+	get zyx() { return new Vector(this[2],this[1],this[0])}
+	get rgb() { return new Vector(this[0],this[1],this[2])}
+
+	cross(vec) {
+		if(this.length!=3 || vec.length!=3 ) throw -1 
+		let r = [
+			this[1]*vec[2] - this[2] * vec[1],
+			this[2]*vec[0] - this[0] * vec[2],
+			this[0]*vec[1] - this[1] * vec[0] 
+			]
+		return new Vector(r) 
+	}
+	mix(vec ,ratio ) {
+		return new Vector(this.map((v,i)=>v*(1-ratio)+vec[i]*ratio)) 
+	}
+
+	invert() {
+		return new Vector(this.map(v=>-v)) 
+	}
+	add(tgt) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		if(this.length!=tgt.length) throw -1
+		return new Vector(this.map((v,i)=>v+tgt[i])) 
+	}
+	sub(tgt) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		if(this.length!=tgt.length) throw -1
+		return new Vector(this.map((v,i)=>v-tgt[i])) 
+	}
+	mult(tgt ) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		return new Vector(this.map((v,i)=>v*tgt[i])) 	
+	}
+	normalize() {
+		let l = this.hypot() 
+		return new Vector(this.map((v,i)=>(l!=0)?v/l:0)) 
+	}
+	floor() {
+		return new Vector(this.map((v,i)=>Math.floor(v))) 	
+	}
+	ceil() {
+		return new Vector(this.map((v,i)=>Math.ceil(v))) 		
+	}
+	fract() {
+		return new Vector(this.map((v,i)=>v-Math.floor(v))) 		
+	}
+	min(tgt ) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		return new Vector(this.map((v,i)=>(v<tgt[i])?v:tgt[i])) 			
+	}
+	max(tgt ) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		return new Vector(this.map((v,i)=>(v>tgt[i])?v:tgt[i])) 			
+	}
+	clamp(min,max) {
+		return new Vector(this.map((v,i)=>(v<min)?min:(v>max)?max:v)) 			
+	}
+	step(th) {
+		return new Vector(this.map((v,i)=>(v<th)?0:1)) 			
+	}
+	mod(a) {
+		return new Vector(this.map((v,i)=>v % a)) 		
+	}
+//return float
+	dot(vec) {
+		return this.reduce((a,v,i)=>a+=v*vec[i],0)
+	}
+	distance(vec) {
+		let v = new Vector(...this)
+		return v.sub(vec).hypot()
+	}
+	hypot() {
+		return Math.hypot(...this)
+	}
+// return bool
+	equal(vec) {
+		return this.reduce((a,v,i)=>a && v===vec[i],true)
+	}
+}//mouse and touch event handler
 Pointer = function(t,cb) {
 	var self = this ;
 	var touch,gesture,EV_S,EV_E,EV_M ;
@@ -2830,7 +2989,6 @@ GPad = function() {
 	this.gpadcount = 0 
 	if(!navigator.getGamepads) return false ;
 	gamepads = navigator.getGamepads();
-//	console.log(gamepads)
 	this.gpadcount = gamepads.length
 	return this.gpadcount > 0  
 }
@@ -2845,7 +3003,7 @@ GPad.prototype.init = function(idx,cb) {
 	if(gamepads[this.idx]) {
 		console.log("gpad init "+this.idx) ;
 		this.axes =gamepads[this.idx].axes 
-		this.conn = true ;
+		this.conn = false ;
 		this.egp = null ;
 	} else {
 		this.conn = false 
@@ -2888,18 +3046,34 @@ GPad.prototype.init = function(idx,cb) {
 }
 GPad.prototype.get = function(pad) {
 	var gp 
-	if(!this.conn) {
+	if(POXPDevice) {
+		this.emu = false 
+		if(POXPDevice.isPresenting && POXPDevice.session.inputSources) {
+		const is = POXPDevice.session.inputSources
+//		if(is.length>1) {
+//			console.log(is[0])}
+		for (let i=0;i<=is.length-1;i++) {
+			if (is[i].gamepad && is[i].gamepad.mapping=="xr-standard") {
+				is[i].gamepad.hand = is[i].handedness
+				if (is[i].handedness=="left" && this.idx==1) {gp=is[i].gamepad }
+				if (is[i].handedness=="right" && this.idx==0) {gp=is[i].gamepad }
+				if(gp) {
+					this.conn = true 
+					break 
+				} else this.conn = false 					
+			}	
+		}
+		} else this.conn = false 
+	} 
+	if(!gp) {
 		if(this.egp==null) return null ;	
+		this.conn = true 
 		gp = this.egp
-	} else {
-		var gamepads = navigator.getGamepads();
-//		console.log(gamepads)
-		this.gamepads = gamepads 
-		var gp = gamepads[this.idx];
-		if(!gp || gp.buttons.length==0) return null ;
-	}
-	
+		this.emu = true 
+	} 
 	var lgp = this.lastGp 
+	gp.conn = this.conn 
+	gp.emu = this.emu 
 	gp.bf = false 
 	gp.pf = false 
 	gp.tf = false 
@@ -2921,14 +3095,23 @@ GPad.prototype.get = function(pad) {
 											touched:gp.buttons[i].touched}
 	}
 	const th = 0.5 
-	for(var i=0;i<gp.axes.length;i++) {
+	const eps = 0.001 
+	let axes = [gp.axes[0],gp.axes[1],gp.axes[2],gp.axes[3]]
+	if(gp.axes[2]!==undefined && gp.axes[3]!==undefined) {
+		 axes[0] = gp.axes[2]
+		 axes[1] = gp.axes[3]
+		 gp.stick = true ;
+	} else gp.stick = false ;
+	
+	gp.eaxes = axes 
+	for(var i=0;i<axes.length;i++) {
+		if(Math.abs(axes[i]) < eps ) gp.axes[i] = 0 
 		gp.dpad[i] = 0 
 		if(lgp) {
-			
-			if(Math.abs(lgp.axes[i])<th && Math.abs(gp.axes[i])>=th) {gp.dpad[i] = 1;gp.pf=true}
-			if(Math.abs(lgp.axes[i])>=th && Math.abs(gp.axes[i])<th) {gp.dpad[i] = -1;gp.pf=true}
+			if(Math.abs(lgp.axes[i])<th && Math.abs(axes[i])>=th) {gp.dpad[i] = 1;gp.pf=true}
+			if(Math.abs(lgp.axes[i])>=th && Math.abs(axes[i])<th) {gp.dpad[i] = -1;gp.pf=true}
 		}
-		lgp.axes[i] = gp.axes[i]
+		lgp.axes[i] = axes[i]
 	}
 	this.gp = gp 
 
@@ -3700,25 +3883,25 @@ static loadFont(name,path) {
 "use strict" ;
 const Mat4 = CanvasMatrix4 // alias
 const RAD = Math.PI/180 ;
-const PoxPlayer  = function(can,opt) {
-	this.version = "1.3.0" 
+class PoxPlayer {
+
+constructor(can,opt) {
+	this.version = "3.0.0" 
 	if(!Promise) {
-		alert("This browser is not supported!!") ;
-		return null ;		
+		throw "This browser is not supported!!"	
 	}
 	if(!opt) opt = {} 
 	this.can = (can instanceof HTMLElement)?can:document.querySelector(can)  ;
 
 	// wwg initialize
 	const wwg = new WWG() ;
+	const initopt = {preserveDrawingBuffer: opt.capture,antialias:true, xrCompatible: true }
 	const useWebGL2 = !opt.noWebGL2
-	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: opt.capture,antialias:true})) && !wwg.init(this.can,{preserveDrawingBuffer: opt.capture,antialias:true})) {
-		alert("wgl not supported") ;
-		return null ;
+	if(!(useWebGL2 && wwg.init2(this.can,initopt)) && !wwg.init(this.can,initopt)) {
+		throw "wgl not supported!"
 	}
 	if(opt.needWebGL2 && wwg.version!=2) {
-		alert("needs wgl2")
-		return null 
+		throw "needs wgl2"
 	}
 	this.wwg = wwg ;
 //	if(window.WAS!=undefined) this.synth = new WAS.synth() 
@@ -3732,39 +3915,52 @@ const PoxPlayer  = function(can,opt) {
 	Param.bindInput("camselect",(opt.ui && opt.ui.camselect)?opt.ui.camselect:"#camselect") ;
 	
 	this.pixRatio = 1 
-	this.pox = {} ;
-	this.eventListener = {
-		frame:[],
-		gpad:[]
-	}
+	this.pox = {can:this.can,wwg:this.wwg,synth:this.synth,poxp:this}
+	this.setpox(this.pox)
+	this.eventListener = {}
 
+	if(window.GPad) {
+		this.pox.gPad = new GPad()
+		this.pox.gPad.name = "1"
+		this.pox.gPad2 = new GPad()
+		this.pox.gPad2.name = "2"
+		if(!this.pox.gPad.init(0,(pad,f)=>{
+			if(f) {
+				this.pox.log("set 1"+pad.gp.hand)
+			}
+		}))
+		if(!this.pox.gPad2.init(1,(pad,f)=>{
+			if(f) {
+				this.pox.log("set 2"+pad.gp.hand)
+			}
+		}))
+//		console.log(this.pox.gPad)
+		this.pox.gPad.ev = (pad)=> {
+			this.callEvent("gpad",pad) ;
+		}
+		this.pox.gPad2.ev = (pad,b,p)=> {
+			this.callEvent("gpad",pad) ;
+		}
+	}
 	// canvas initialize
 	this.resize() ;
 	window.addEventListener("resize",()=>{this.resize()}) ;
 	this.pause = true ;
 
-	//set key capture dummy input
-	const e = document.createElement("input") ;
-	e.setAttribute("type","checkbox") ;
-	e.style.position = "absolute" ; e.style.zIndex = -100 ;
-	e.style.top = 0 ;e.style.left = "-20px"
-	e.style.width = "10px" ; e.style.height ="10px" ; e.style.padding = 0 ; e.style.border = "none" ; e.style.opacity = 0 ;
-	this.can.parentNode.appendChild(e) ;
-	this.keyElelment = e ;
-	this.keyElelment.focus() ;
-
-	this.setEvent() ;
+	this.setMouseEvent() ;
 	// VR init 
-	POXPDevice.checkVR(this)
+	POXPDevice.checkVR(this).then(f=>{
+		if(f) console.log((POXPDevice.vrDisplay)?"WebVR":"WebXR"+" supported")
+		this.vrReady = f 
+	})
 	//create default camera
-
 	this.cam0 = this.createCamera()
-	this.cam0.setCam({camFar:10000})
 	this.cam1 = this.createCamera() ;
 	this.ccam = this.cam1 
-	console.log(this)
 }
-PoxPlayer.prototype.addEvent = function(ev,cb) {
+
+//event handling
+addEvent(ev,cb) {
 	let el = null
 	switch(ev) {
 		case "frame":
@@ -3775,161 +3971,25 @@ PoxPlayer.prototype.addEvent = function(ev,cb) {
 			el = {cb:cb,active:true}
 			this.eventListener.gpad.push(el)
 			break 
+		case "vrchange":
+			el = {cb:cb,active:true}
+			this.eventListener.vrchange.push(el)
+			break 
 	}
 	return el
 }
-PoxPlayer.prototype.removeEvent = function(ev) {
+removeEvent (ev) {
 	this.eventListener.frame = this.eventListener.frame.filter((e)=>(e!==ev))
 	this.eventListener.gpad = this.eventListener.gpad.filter((e)=>(e!==ev))
+	this.eventListener.vrchange = this.eventListener.vrchange.filter((e)=>(e!==ev))
 }
-PoxPlayer.prototype.clearEvent = function() {
+clearEvent() {
 	this.eventListener.frame = []
 	this.eventListener.gpad = []
+	this.eventListener.vrchange = []
 }
-PoxPlayer.prototype.enterVR = function() {
-	let ret = true
-	if(this.vrDisplay) {
-		console.log("enter VR")
-		POXPDevice.presentVR(this)
-	} else if(document.body.webkitRequestFullscreen) {
-		console.log("fullscreen")
-		const base = this.can.parentNode
-		this.ssize = {width:base.offsetWidth,height:base.offsetHeight}
-		document.addEventListener("webkitfullscreenchange",(ev)=>{
-			console.log("fs "+document.webkitFullscreenElement)
-			if( document.webkitFullscreenElement) {
-				base.style.width = window.innerWidth + "px"
-				base.style.height = window.innerHeight + "px"				
-			} else {
-				base.style.width = this.ssize.width + "px"
-				base.style.height = this.ssize.height + "px"					
-			}
-		})
-		base.webkitRequestFullscreen()
-	} else ret = false 
-	return ret 
-}
-PoxPlayer.prototype.exitVR = function() {
-	if(this.vrDisplay) {
-		POXPDevice.closeVR(this)
-	}
-}
-PoxPlayer.prototype.setEvent = function() {
-	// mouse and key intaraction
-	let dragging = false ;
-	const Param = this.param ;
-	const can = this.can ;
 
-	//mouse intraction
-	const m = new Pointer(can,{
-		down:(d)=> {
-			if(!this.ccam || Param.pause) return true ;
-			let ret = true ;
-			ret = this.callEvent("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
-			if(ret) this.ccam.event("down",d)
-			dragging = true ;
-			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
-			return false ;
-		},
-		move:(d)=> {
-			if(!this.ccam || Param.pause) return true;
-			let ret = true ;
-			ret = this.callEvent("move",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,ox:d.ox*this.pixRatio,oy:d.oy*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
-			if(ret) this.ccam.event("move",d) 
-			return false ;
-		},
-		up:(d)=> {
-			if(!this.ccam) return true ;
-			dragging = false ;
-			let ret = true ;
-			ret = this.callEvent("up",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio,ex:d.ex*this.pixRatio,ey:d.ey*this.pixRatio}) ;
-			if(ret) this.ccam.event("up",d)
-			return false ;
-		},
-		out:(d)=> {
-			if(!this.ccam) return true ;
-			dragging = false ;
-			let ret = true ;
-			ret = this.callEvent("out",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
-			if(ret) this.ccam.event("out",d) 
-			return false ;
-		},
-		wheel:(d)=> {
-			if(!this.ccam || Param.pause) return true;
-			let ret = true ;
-			ret = this.callEvent("wheel",d) ;
-			if(ret) this.ccam.event("wheel",d) 
-			return false ;
-		},
-		gesture:(z,r)=> {
-			if(!this.ccam || Param.pause) return true;
-			let ret = true ;
-			ret = this.callEvent("gesture",{z:z,r:r}) ;
-			if(ret) this.ccam.event("gesture",{z:z,r:r}) 
-			return false ;
-		},
-		gyro:(ev)=> {
-			if(!this.ccam || Param.pause || this.vrDisplay ) return true;
-			if(dragging) return true ;
-			let ret = true ;
-			ret = this.callEvent("gyro",ev) ;
-			if(ret) this.ccam.event("gyro",ev) 
-			return false ;
-		}
-	})
-	WBind.addev(this.keyElelment,"keydown", (ev)=>{
-//		console.log("key:"+ev.key);
-		if( Param.pause) return true ;
-		if(this.pox.event) {
-			if(!this.callEvent("keydown",ev)) return true ;
-		}
-		if(this.ccam) this.ccam.event("keydown",ev) 
-		return false ;
-	})
-	WBind.addev(this.keyElelment,"keyup", (ev)=>{
-//		console.log("key up:"+ev.key);
-		if(Param.pause) return true ;
-		if(this.pox.event) {
-			if(!this.callEvent("keyup",ev)) return true ;
-		}
-		if(this.ccam) this.ccam.event("keyup",ev)
-		return false ;
-	})		
-	document.querySelectorAll("#bc button").forEach((o)=>{
-		o.addEventListener("mousedown", (ev)=>{
-			this.callEvent("btndown",ev.target.id) ;
-			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
-			ev.preventDefault()
-		})
-		o.addEventListener("touchstart", (ev)=>{
-			this.callEvent("touchstart",ev.target.id) ;
-			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
-			ev.preventDefault()
-		})
-		o.addEventListener("mouseup", (ev)=>{
-			this.callEvent("btnup",ev.target.id) ;
-			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
-			this.keyElelment.focus() ;
-			ev.preventDefault()
-		})
-		o.addEventListener("touchend", (ev)=>{
-			ret = true; 
-			ret = this.callEvent("touchend",ev.target.id) ;
-			if(ret) this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
-			ev.preventDefault()
-		})
-	})
-
-}
-PoxPlayer.prototype.resize = function() {
-//	console.log("wresize:"+document.body.offsetWidth+" x "+document.body.offsetHeight);
-	if(this.can.offsetWidth < 300 || 
-		(this.vrDisplay && this.vrDisplay.isPresenting)) return 
-	this.can.width= this.can.offsetWidth*this.pixRatio*window.devicePixelRatio  ;
-	this.can.height = this.can.offsetHeight*this.pixRatio*window.devicePixelRatio  ;
-	console.log("canvas:"+this.can.width+" x "+this.can.height);		
-}
-PoxPlayer.prototype.load = async function(d) {
+async load(d) {
 	return new Promise((resolve,reject) => {
 		if(typeof d == "string") {
 			const req = new XMLHttpRequest();
@@ -3951,7 +4011,7 @@ PoxPlayer.prototype.load = async function(d) {
 	})
 }
 
-PoxPlayer.prototype.loadImage = function(path) {
+loadImage(path) {
 	if(path.match(/^https?:/)) {
 		return this.wwg.loadImageAjax(path)
 	}else {
@@ -3967,62 +4027,89 @@ PoxPlayer.prototype.loadImage = function(path) {
 		})
 	}
 }
-//for compati
-	function V3add() {
-		let x=0,y=0,z=0 ;
-		for(let i=0;i<arguments.length;i++) {
-			x += arguments[i][0] ;y += arguments[i][1] ;z += arguments[i][2] ;
+
+setpox(POX) {
+	POX.log = (msg)=> {
+		if(this.errCb) this.errCb(msg) ;
+	}
+	POX.loadImage = this.loadImage 
+	POX.loadAjax = this.wwg.loadAjax
+	POX.addEvent = (e,f) => this.addEvent(e,f)
+	POX.exitVR = this.exitVR 
+	try {
+		POX.profile = new PoxProfile(this)
+	} catch(err) {POX.profile=null }
+	
+	POX.setScene = async (scene)=> {
+		return new Promise((resolve,reject) => {
+			this.setScene(scene).then( () => {
+				resolve() ;
+			}).catch((err)=>	 {
+				console.log("render err"+err.stack)
+			})
+		})
+	}
+	POX.getModule = (n)=>this.m1
+	POX.getWorker = (n)=>this.w1
+	POX.loadModule = (m)=>this.loadModule(m) 
+	POX.initModule = (m)=>this.initModule(m) 
+
+	POX.addModel = (model)=>{ if(this.render) return this.render.addModel(model) }
+	POX.removeModel = (model)=>{ if(this.render) return this.render.removeModel(model) }
+	POX.getModelData = (model)=>{ if(this.render) return this.render.getModelData(model) }
+	POX.setModelData = (model,data)=>{
+		const m = this.render.getModelData(model)
+		if(data.matrix) m.mm = data.matrix
+		if(data.fs_uni) {
+			for(let k in data.fs_uni) m.fs_uni[k] = data.fs_uni[k]  
 		}
-		return [x,y,z] ;
+		if(data.vs_uni) {
+			for(let k in data.vs_uni) m.vs_uni[k] = data.vs_uni[k]  
+		}
+		for(let k of ["hide","parent","blend","cull"]) if(data[k]!==undefined) m[k] = data[k] 
+		if(data.geo) {
+			this.render.updateModel(model,"vbo",data.geo.vtx,data.geo.subdata)
+		}
+		if(data.inst) {
+			this.render.updateModel(model,"inst",data.inst.data,data.inst.subdata)		
+		}
 	}
-	function V3len(v) {
-		return Math.hypot(v[0],v[1],v[2]) ;
-	}
-	function V3norm(v,s) {
-		const l = V3len(v) ;
-		if(s===undefined) s = 1 ;
-		return (l==0)?[0,0,0]:[v[0]*s/l,v[1]*s/l,v[2]*s/l] ;
-	}
-	function V3mult(v,s) {
-		return [v[0]*s,v[1]*s,v[2]*s] ;
-	}
-	function V3dot(v1,v2) {
-		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
+	POX.setSceneData = (data) =>{
+		if(data.fs_uni) {
+			for(let k in data.fs_uni) this.render.data.fs_uni[k] = data.fs_uni[k]  
+		}
+		if(data.vs_uni) {
+			for(let k in data.vs_uni) this.render.data.vs_uni[k] = data.vs_uni[k]  
+		}
+		if(data.env) {
+			for(let k in data.env) this.render.data.env[k] = data.env[k]  
+		}		
 	}
 	
-PoxPlayer.prototype.set = async function(d,param={},uidom) { 
+}
+async setsrc(sc,settings) {
+	this.pox.src = sc 
+	this.pox.setting = settings 
+	this.loadModuleSrc(sc.js).then(mod=>{
+		this.initModule(mod)
+	})
+}
+async set(d,param={},uidom) { 
+
 	const VS = d.vs ;
 	const FS = d.fs ;
-	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
-	const POX = this.pox ;
-	if(window.GPad) {
-		POX.gPad = new GPad()
-		POX.gPad2 = new GPad()
-		
-		if(!POX.gPad.init(0,(pad,f)=>{
-			if(f) {
-				if(pad.gp.hand=="left") POX.leftPad = pad 
-				else if(pad.gp.hand=="right") POX.rightPad = pad
-				else  POX.rightPad = pad
-			}
-		})) POX.rightPad = POX.gPad
-		if(!POX.gPad2.init(1,(pad,f)=>{
-			if(f) {
-				if(pad.gp.hand=="left") POX.leftPad = pad 
-				if(pad.gp.hand=="right") POX.rightPad = pad 
-			}
-		})) POX.leftPad = POX.gPad2
-//		console.log(this.pox.gPad)
-		this.pox.gPad.ev = (pad)=> {
-			ret = this.callEvent("gpad",pad) ;
-		}
-		this.pox.gPad2.ev = (pad,b,p)=> {
-			ret = this.callEvent("gpad",pad) ;
-		}
-	}
+	this.pox.src = d 
+	this.pox.param = param 
+	const POX = this.pox
 
 	POX.loadImage = this.loadImage 
 	POX.loadAjax = this.wwg.loadAjax
+	POX.addEvent = (e,f) => this.addEvent(e,f)
+	POX.exitVR = this.exitVR 
+	try {
+		POX.profile = new PoxProfile(this)
+	} catch(err) {POX.profile=null }
+	
 	POX.V3add = function() {
 		let x=0,y=0,z=0 ;
 		for(let i=0;i<arguments.length;i++) {
@@ -4044,6 +4131,9 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	POX.V3dot = function(v1,v2) {
 		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
 	}
+	POX.Vdistance = function(v1,v2) {
+			return Math.hypot(...v1.map((v,i)=>v-v2[i]))
+	}
 	POX.setScene = async (scene)=> {
 		return new Promise((resolve,reject) => {
 			this.setScene(scene).then( () => {
@@ -4053,11 +4143,45 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 			})
 		})
 	}
+	POX.loadModule = (m)=>this.loadModule(m) 
+	POX.initModule = (m)=>this.initModule(m) 
 	POX.log = (msg)=> {
 		if(this.errCb) this.errCb(msg) ;
 	}
+	POX.addModel = (model)=>{ if(this.render) return this.render.addModel(model) }
+	POX.removeModel = (model)=>{ if(this.render) return this.render.removeModel(model) }
+	POX.getModelData = (model)=>{ if(this.render) return this.render.getModelData(model) }
+	POX.setModelData = (model,data)=>{
+		const m = this.render.getModelData(model)
+		if(data.matrix) m.mm = data.matrix
+		if(data.fs_uni) {
+			for(let k in data.fs_uni) m.fs_uni[k] = data.fs_uni[k]  
+		}
+		if(data.vs_uni) {
+			for(let k in data.vs_uni) m.vs_uni[k] = data.vs_uni[k]  
+		}
+		for(let k of ["hide","parent","blend","cull"]) if(data[k]!==undefined) m[k] = data[k] 
+		if(data.geo) {
+			this.render.updateModel(model,"vbo",data.geo.vtx,data.geo.subdata)
+		}
+		if(data.inst) {
+			this.render.updateModel(model,"inst",data.inst.data,data.inst.subdata)		
+		}
+	}
+	POX.setSceneData = (data) =>{
+		if(data.fs_uni) {
+			for(let k in data.fs_uni) this.render.data.fs_uni[k] = data.fs_uni[k]  
+		}
+		if(data.vs_uni) {
+			for(let k in data.vs_uni) this.render.data.vs_uni[k] = data.vs_uni[k]  
+		}
+		if(data.env) {
+			for(let k in data.env) this.render.data.env[k] = data.env[k]  
+		}		
+	}
 //	this.parseJS(d.m).then((m)=> {
-	const m = await this.parseJS(d.m) ;
+	if(typeof d.m  == "string") {
+		const m = await this.parseJS(d.m) ;
 		try {
 			POX.eval = new Function("POX",'"use strict";'+m)
 		}catch(err) {
@@ -4075,26 +4199,71 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //			throw new Error('reject!!2')
 			return(null);
 		}
-		if(POX.setting.needWGL2 && this.wwg.version!=2) {
-			this.emsg = "needs WebGL 2.0"
-			return(null)
+	} else if(d.m.constructor === Function) {
+		try {
+			d.m(POX)
+		}catch(err) {
+//			console.log(err.stack)
+			this.emsg = ("eval error "+err.stack);
+//			throw new Error('reject!!2')
+			return(null);
 		}
+	}
+	if(POX.setting.needWGL2 && this.wwg.version!=2) {
+		this.emsg = "needs WebGL 2.0"
+		return(null)
+	}
 
-		if(uidom) this.setParam(uidom)
-		if(POX.init) {
-			try {
-				await POX.init()
-			}catch(err) {
+	if(uidom) this.setParam(uidom)
+	if(POX.init) {
+		try {
+			await POX.init()
+		}catch(err) {
 //				console.log(err)
-				this.emsg = ("init error "+err.stack);
+			this.emsg = ("init error "+err.stack);
 //				throw new Error('reject!!2')
-				return null
-			}
+			return null
 		}
-		return(POX) ;
+	}
+	return(POX) ;
 }
-PoxPlayer.prototype.parseJS = function(src) {
-
+loadModuleSrc(src,param) {
+	function b64EncodeUnicode(str) {
+	    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+	        function toSolidBytes(match, p1) {
+	            return String.fromCharCode('0x' + p1);
+	    }));
+	}
+	return this.loadModule("data:text/javascript;base64," 
+		+ b64EncodeUnicode(src),param)
+}
+async loadModule(src,param) {
+	return new Promise((resolve,reject) => {
+		import(src).then((module)=> {
+			resolve(module)
+		}).catch((err)=>{
+			this.pox.log("module "+err.stack )
+			reject(["module",err.stack])
+		})
+	})	
+}
+initModule(module) {
+	return new Promise(async (resolve,reject) => {
+			if(module.init) {
+				try {
+					await module.init(this.pox)
+				} catch(err) {
+					this.pox.log("init "+err.stack)
+					reject(["init",err.stack])
+				}
+			}
+			if(module.frame) {
+				this.addEvent("frame",module.frame )
+			} 
+			resolve(module)
+	})	
+}
+parseJS(src) {
 	return new Promise((resolve,reject) => {
 		const s = src.split("\n") ;
 		const inc = [] ;
@@ -4115,39 +4284,52 @@ PoxPlayer.prototype.parseJS = function(src) {
 		})
 	})
 }
-PoxPlayer.prototype.setPacked = function(param={}) { 
-	
-}
-PoxPlayer.prototype.stop = function() {
+stop() {
 	window.cancelAnimationFrame(this.loop) ; 
 	if(this.pox.unload) this.pox.unload() ;
 }
-PoxPlayer.prototype.cls = function() {
+cls() {
 	if(this.render) this.render.clear() ;
 }
-PoxPlayer.prototype.setError = function(err) {
+setError(err) {
 	this.errCb = err ;
 }
-PoxPlayer.prototype.callEvent = function(kind,ev,opt) {
-	if(!this.pox.event) return true
+callEvent(kind,ev,opt) {
 	if(typeof ev == "object") ev.rtime = this.rtime
 	let ret = true 
-	try {
-		ret = this.pox.event(kind,ev,opt)
-	} catch(err) {
-		this.errCb(err.stack)
+	if(this.pox.event) {
+		try {
+			ret = this.pox.event(kind,ev,opt)
+		} catch(err) {
+			this.errCb(err.stack)
+		}
+	}
+	if(kind=="vrchange") {
+		this.cam1.vrchange(ev)
+		for(let i=0;i<this.eventListener.vrchange.length;i++) {	//attached event
+			const f = this.eventListener.vrchange[i]
+			if(f.active) {
+				f.cb({vrmode:ev})
+			}
+		}
 	}
 	if(kind=="gpad") {
+		if(ev.dbtn[5]==-1) POXPDevice.closeVR()
 		for(let i=0;i<this.eventListener.gpad.length;i++) {	//attached event
 			const f = this.eventListener.gpad[i]
 			if(f.active) {
-				f.cb({gpad:ev})
+				let p = {gpad:ev}
+				if(ev.hand=="left") p.leftPad = ev
+				if(ev.hand=="right") p.rightPad = ev
+				if(this.pox.setting.primaryPad == ev.hand) p.primaryPad = ev
+				else p.secondaryPad = ev 
+				f.cb(p)
 			}
 		}		
 	}
 	return ret 
 }
-PoxPlayer.prototype.setParam = function(dom) {
+setParam(dom) {
 	const param = this.pox.setting.param ;
 	if(param===undefined) return ;
 	this.uparam = WBind.create()
@@ -4208,9 +4390,7 @@ PoxPlayer.prototype.setParam = function(dom) {
 }
 
 
-PoxPlayer.prototype.setScene = function(sc) {
-//	console.log(sc) ;
-
+setScene(sc) {
 	const wwg = this.wwg ;
 	const pox = this.pox ;
 	const can = this.can ;
@@ -4219,8 +4399,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const Param = this.param ;
 	const sset = pox.setting || {} ;
 	if(!sset.scale) sset.scale = 1.0 ;
+	if(!sset.primaryPad) sset.primaryPad = "right";
 	
-
+	if(sc.cam) pox.setting.cam = sc.cam
 	sc.vshader = {text:pox.src.vs} ;
 	sc.fshader = {text:pox.src.fs} ;
 	pox.scene = sc ;
@@ -4231,7 +4412,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	pox.render = r ;
 
 	let ccam = this.ccam
-	pox.cam = this.cam1.cam ;
+	
 	this.isVR = false 
 	const self = this 
 	const bm = new CanvasMatrix4()
@@ -4253,7 +4434,11 @@ PoxPlayer.prototype.setScene = function(sc) {
 		}
 		this.resize();
 		
-		if(pox.setting.cam) this.cam1.setCam(pox.setting.cam)
+		if(pox.setting.cam) {
+			this.cam0.setCam(pox.setting.cam)
+			this.cam0.setCam({camMode:"bird"})
+			this.cam1.setCam(pox.setting.cam)
+		}
 //		if(ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 		this.keyElelment.value = "" ;
 		this.clearEvent()
@@ -4268,16 +4453,10 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let ft = st ;
 		let fc = 0 ;
 		let gpad 
-		const loopf = () => {
+		const loopf = (timestamp,frame) => {
 //			console.log("************loop")
-			if(this.vrDisplay && this.vrDisplay.isPresenting) {
-				this.loop = this.vrDisplay.requestAnimationFrame(loopf)
-				this.isVR = true 
+			POXPDevice.animationFrame(this,loopf,frame)
 
-			} else {
-				this.loop = window.requestAnimationFrame(loopf) ;
-				this.isVR = false ;
-			}
 			const ct = new Date().getTime() ;
 			this.ctime = ct 
 			if(Param.pause) {
@@ -4294,28 +4473,62 @@ PoxPlayer.prototype.setScene = function(sc) {
 				fc = 0 ;
 				ft = ct ; 
 			}
-			this.ccam = (Param.camselect)?this.cam0:this.cam1
+			this.ccam = (Param.camselect && !this.isVR)?this.cam0:this.cam1
 			ccam = this.ccam 
+			pox.cam = ccam.cam ;
 
 			if(Param.autorot) ccam.setCam({camRY:(rt/100)%360}) ;
-			if(pox.gPad) {	
-				const rp = (pox.rightPad)?pox.rightPad.get():null
-				const lp = (pox.leftPad)?pox.leftPad.get():null
-				if(ccam.cam.gPad && rp!=null ) ccam.setPad( rp,lp )
+			let rp=null,lp=null,pp=null,sp=null
+			const xi = POXPDevice.getInput() 
+			if(0) {
+				rp = xi.gamepad?.right?.gamepad
+				lp= xi.gamepad?.left?.gamepad
+			} else if(pox.gPad) {
+				let p1 = pox.gPad.get()
+				let p2 = pox.gPad2.get() 
+				if(this.isVR) {
+					if(!p1.emu && p1.hand == "right") rp = p1 ;
+					if(!p1.emu && p1.hand == "left") lp = p1 ;
+					if(!p2.emu && p2.hand == "right") rp = p2 ;
+					if(!p2.emu && p2.hand == "left") lp = p2 
+				} else {
+					if(p1.hand == "right" ) rp = p1
+					if(p2.hand == "right" ) rp = p2				
+					if(p1.hand == "left" ) lp = p1
+					if(p2.hand == "left" ) lp = p2
+				}
 			}
+			if(sset.primaryPad=="left") pp = lp,sp = rp
+			else pp=rp,sp=lp
+			if(!pp || !pp.conn) pp = sp, sp = null 
+//				console.log(pp)
+//				console.log(sp)
+			if(ccam.cam.gPad) ccam.setPad(pp,sp)
+
 			ccam.update()	// camera update
+			let camm = ccam.getMtx(sset.scale,(Param.isStereo || self.isVR)?1:0) ;
+			
 			for(let i=0;i<this.eventListener.frame.length;i++) {	//attached event
 				const f = this.eventListener.frame[i]
 				if(f.active) {
-					f.cb({render:r,pox:pox,cam:this.cam1.cam,rtime:rt})
+					try {
+					f.cb({render:r,pox:pox,ccam:ccam,cam:ccam.cam,rtime:rt/1000,
+						xrinput:xi,
+						rightPad:rp,leftPad:lp,
+						primaryPad:pp,secondaryPad:sp})
+					} catch(err) {
+						this.pox.log(err.stack)
+						Param.pause = true
+					}
 				}
 			}
+			let upd = {}
+			if(pox.update)  upd = pox.update(r,ccam.cam,rt,-1)
 			Param.updateTimer() ;
-			update(r,pox,this.cam1.cam,rt) ; // scene update 
-
-			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
+			update(r,pox,camm,rt,upd) ; // scene update 
+			POXPDevice.submitFrame(this)
 			this.ltime = ct 
-			this.rtime = rt 
+			this.rtime = rt
 		}
 		loopf() ;		
 	}).catch((err)=>{
@@ -4340,9 +4553,11 @@ PoxPlayer.prototype.setScene = function(sc) {
 	function modelMtx2(render,camm) {
 
 		// calc each mvp matrix and invert matrix
-		const mod = [[],[]] ;		
-		for(let i=0;i<render.modelCount;i++) {
-			let d = render.getModelData(i) ;
+		const mod = [[],[]] ;	
+		const models = render.data.model 	
+		for(let i=0;i<models.length;i++) {
+			let d = models[i] ;
+			if(!d) continue 
 			bm.load(d.bm)
 			if(d.mm) bm.multRight(d.mm) ;
 			if(d.parent!==undefined) {
@@ -4363,7 +4578,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 			if(!miMtx[i]) miMtx[i] = new CanvasMatrix4()
 			if(!mvMtx[i]) mvMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
 			if(!vpMtx[i]) vpMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
-
+			d.modelMtx = mMtx[i]
 			const uni0 = {
 				vs_uni:{
 					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
@@ -4392,6 +4607,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 			uni1.fs_uni.vpMatrix_r = uni1.fs_uni.vpMatrix 			
 			mod[0][i] = uni0 
 			mod[1][i] = uni1 
+			
+			d.modelMtx = mMtx[i]
 		}
 		let up = [{model:mod[0],fs_uni:{},vs_uni:{}},
 			{model:mod[1],fs_uni:{},vs_uni:{}}]
@@ -4415,98 +4632,372 @@ PoxPlayer.prototype.setScene = function(sc) {
 	}
 	// update scene
 
-	function update(render,pox,cam,time) {
+	function update(render,pox,camm,time,update) {
 		// draw call 
-		let camm,update = {} ;
+
+		render.data.model.sort((a,b)=>{
+			if(a===null) return -1
+			if(b===null) return 1
+			let al = a.layer, bl = b.layer 
+			if(al===undefined) al = 0 
+			if(bl===undefined) bl = 0 
+			return al- bl  
+		}) 
+		let mtx2 = modelMtx2(render,camm) ;
 		if(Param.isStereo || self.isVR) {
-			if(!Param.pause) update = pox.update(render,cam,time,-1)
-			camm = ccam.getMtx(sset.scale,1) ;
-			let mtx2 = modelMtx2(render,camm) ;
+			let vp = POXPDevice.getViewport(can)
+			if(POXPDevice.isPresenting) {
+//				console.log("fbs")
+				render.gl.bindFramebuffer(render.gl.FRAMEBUFFER, 
+					POXPDevice.webGLLayer.framebuffer)
+			}
+	
 			if(update.vs_uni===undefined) update.vs_uni = {} ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
-			update.fs_uni.time = time/1000 ;
-			update.vs_uni.time = time/1000 ;			
-			render.gl.viewport(0,0,can.width/2,can.height) ;			
+			update.fs_uni.rtime = time/1000 ;
+			update.fs_uni.time = update.fs_uni.rtime
+			update.vs_uni.rtime = time/1000 ;		
+			update.vs_uni.time = update.vs_uni.rtime
+			render.gl.viewport(vp.leftViewport.x,vp.leftViewport.y, vp.leftViewport.width,vp.leftViewport.height) ;
 			render.draw([update,mtx2[0]],false) ;
-			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
+			render.gl.viewport(vp.rightViewport.x,vp.rightViewport.y, vp.rightViewport.width,vp.rightViewport.height) ;
 			render.draw([update,mtx2[1]],true) ;
+			if(POXPDevice.isPresenting) {
+//				console.log("fbe")
+				render.gl.bindFramebuffer(render.gl.FRAMEBUFFER,null)
+			}
 		} else {
-			if(!Param.pause) update = pox.update(render,cam,time,0)
-			camm = ccam.getMtx(sset.scale,0) ;
-			let mtx2 = modelMtx2(render,camm) ;
 			if(update.vs_uni===undefined) update.vs_uni = {} ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
 			mtx2[0].vs_uni.stereo = 0 ;
-			update.fs_uni.time = time/1000 ;
-			update.vs_uni.time = time/1000 ;	
+			update.fs_uni.rtime = time/1000 ;
+			update.fs_uni.time = update.fs_uni.rtime
+			update.vs_uni.rtime = time/1000 ;	
+			update.vs_uni.time = update.vs_uni.rtime
 			render.gl.viewport(0,0,can.width,can.height) ;
 			render.draw([update,mtx2[0]],false) ;
 		}
 	}
 }
-const POXPDevice = {
-	checkVR:function(poxp) {
-		return new Promise( (resolve,reject)=>{
-			// for WebVR
-			if(navigator.getVRDisplays) {
-				navigator.getVRDisplays().then((displays)=> {
-					poxp.vrDisplay = displays[displays.length - 1]
-					console.log(poxp.vrDisplay)
-					window.addEventListener('vrdisplaypresentchange', ()=>{
-						console.log("vr presenting= "+poxp.vrDisplay.isPresenting)
-						if(poxp.vrDisplay.isPresenting) {
-							poxp.callEvent("vrchange",1)
-						} else {
-							poxp.resize() ;
-							poxp.callEvent("vrchange",0)
-						}
-					}, false);
-					window.addEventListener('vrdisplayactivate', ()=>{
-						console.log("vr active")
-					}, false);
-					window.addEventListener('vrdisplaydeactivate', ()=>{
-						console.log("vr deactive")
-					}, false);
-				})
+
+//----------------------------------
+//device dependent
+enterVR() {
+	let ret = true
+	if(POXPDevice.VRReady) {
+		console.log("enter VR")
+		POXPDevice.presentVR(this)
+	} else if(document.body.webkitRequestFullscreen) {
+		console.log("fullscreen")
+		const base = this.can.parentNode
+		this.ssize = {width:base.offsetWidth,height:base.offsetHeight}
+		document.addEventListener("webkitfullscreenchange",(ev)=>{
+			if( document.webkitFullscreenElement) {
+				base.style.width = window.innerWidth + "px"
+				base.style.height = window.innerHeight + "px"				
+			} else {
+				base.style.width = this.ssize.width + "px"
+				base.style.height = this.ssize.height + "px"					
 			}
-			
+		})
+		base.webkitRequestFullscreen()
+	} else ret = false 
+	return ret 
+}
+exitVR() {
+	if(POXPDevice.VRReady) {
+		POXPDevice.closeVR(this)
+	}
+}
+setMouseEvent() {
+	//set key capture dummy input
+	const e = document.createElement("input") ;
+	e.setAttribute("type","checkbox") ;
+	e.style.position = "absolute" ; e.style.zIndex = -100 ;
+	e.style.top = 0 ;e.style.left = "-20px"
+	e.style.width = "10px" ; e.style.height ="10px" ; e.style.padding = 0 ; e.style.border = "none" ; e.style.opacity = 0 ;
+	this.can.parentNode.appendChild(e) ;
+	this.keyElelment = e ;
+	this.keyElelment.focus() ;
+	
+	// mouse and key intaraction
+	let dragging = false ;
+	const Param = this.param ;
+	const can = this.can ;
+
+	//mouse intraction
+	const m = new Pointer(can,{
+		down:(d)=> {
+			if(!this.ccam || Param.pause) return true ;
+			let ret = true ;
+			ret = this.callEvent("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
+			if(ret) this.ccam.event("down",d)
+			dragging = true ;
+			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
+			return false ;
+		},
+		move:(d)=> {
+			if(!this.ccam || Param.pause) return true;
+			let ret = true ;
+			ret = this.callEvent("move",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,ox:d.ox*this.pixRatio,oy:d.oy*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
+			if(ret) this.ccam.event("move",d) 
+			return false ;
+		},
+		up:(d)=> {
+			if(!this.ccam) return true ;
+			dragging = false ;
+			let ret = true ;
+			ret = this.callEvent("up",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio,ex:d.ex*this.pixRatio,ey:d.ey*this.pixRatio}) ;
+			if(ret) this.ccam.event("up",d)
+			return false ;
+		},
+		out:(d)=> {
+			if(!this.ccam) return true ;
+			dragging = false ;
+			let ret = true ;
+			ret = this.callEvent("out",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
+			if(ret) this.ccam.event("out",d) 
+			return false ;
+		},
+		wheel:(d)=> {
+			if(!this.ccam || Param.pause) return true;
+			let ret = true ;
+			ret = this.callEvent("wheel",d) ;
+			if(ret) this.ccam.event("wheel",d) 
+			return false ;
+		},
+		gesture:(z,r)=> {
+			if(!this.ccam || Param.pause) return true;
+			let ret = true ;
+			ret = this.callEvent("gesture",{z:z,r:r}) ;
+			if(ret) this.ccam.event("gesture",{z:z,r:r}) 
+			return false ;
+		},
+		gyro:(ev)=> {
+			if(!this.ccam || Param.pause || POXPDevice.VRReady ) return true;
+			if(dragging) return true ;
+			let ret = true ;
+			ret = this.callEvent("gyro",ev) ;
+			if(ret) this.ccam.event("gyro",ev) 
+			return false ;
+		}
+	})
+	WBind.addev(this.keyElelment,"keydown", (ev)=>{
+//		console.log("key:"+ev.key);
+		if( Param.pause) return true ;
+		if(this.pox.event) {
+			if(!this.callEvent("keydown",ev)) return true ;
+		}
+		if(this.ccam) this.ccam.event("keydown",ev) 
+		return false ;
+	})
+	WBind.addev(this.keyElelment,"keyup", (ev)=>{
+//		console.log("key up:"+ev.key);
+		if(Param.pause) return true ;
+		if(this.pox.event) {
+			if(!this.callEvent("keyup",ev)) return true ;
+		}
+		if(this.ccam) this.ccam.event("keyup",ev)
+		return false ;
+	})		
+	document.querySelectorAll("#bc button").forEach((o)=>{
+		o.addEventListener("mousedown", (ev)=>{
+			this.callEvent("btndown",ev.target.id) ;
+			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
+		})
+		o.addEventListener("touchstart", (ev)=>{
+			this.callEvent("touchstart",ev.target.id) ;
+			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
+		})
+		o.addEventListener("mouseup", (ev)=>{
+			this.callEvent("btnup",ev.target.id) ;
+			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
+			this.keyElelment.focus() ;
+			ev.preventDefault()
+		})
+		o.addEventListener("touchend", (ev)=>{
+			let ret = true; 
+			ret = this.callEvent("touchend",ev.target.id) ;
+			if(ret) this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
+		})
+	})
+
+}
+resize() {
+//	console.log("wresize:"+document.body.offsetWidth+" x "+document.body.offsetHeight);
+	if(this.can.offsetWidth < 300 || 
+		(POXPDevice.isPresenting)) return 
+	this.can.width= this.can.offsetWidth*this.pixRatio*window.devicePixelRatio  ;
+	this.can.height = this.can.offsetHeight*this.pixRatio*window.devicePixelRatio  ;
+//	console.log("canvas:"+this.can.width+" x "+this.can.height);		
+}
+
+} //class PoxPlayer
+
+const POXPDevice = {
+	VRReady:false,
+	isPresenting:false,
+	checkVR:function() {
+		return new Promise( (resolve,reject)=>{
+			if(navigator.xr) {
+				navigator.xr.isSessionSupported('immersive-vr',
+					{optionalFeatures: [ 'hand-tracking' ]}).then((supported) => {
+					POXPDevice.VRReady = supported 
+					resolve(supported)       	
+				}).catch((err)=>{
+					console.log(err)
+					resolve(false)
+				});
+			} else {
+				resolve(false)
+			}
 		})
 	},
 	presentVR:function(poxp) {
 		return new Promise( (resolve,reject)=>{
-			const p = { source: poxp.can,attributes:{} }
-			if(poxp.pox.setting.highRefreshRate!==undefined) p.attributes.highRefreshRate = poxp.pox.setting.highRefreshRate
-			if(poxp.pox.setting.foveationLevel!==undefined) p.attributes.foveationLevel = poxp.pox.setting.foveationLevel
-			poxp.vrDisplay.requestPresent([p]).then( () =>{
-				console.log("present ok")
-				const leftEye = poxp.vrDisplay.getEyeParameters("left");
-				const rightEye = poxp.vrDisplay.getEyeParameters("right");
-				poxp.can.width = Math.max(leftEye.renderWidth, rightEye.renderWidth) * 2;
-				poxp.can.height = Math.max(leftEye.renderHeight, rightEye.renderHeight);
-				if(poxp.vrDisplay.displayName=="Oculus Go") {
-					poxp.can.width = 2560
-					poxp.can.height = 1280
-				}
-				poxp.can.width= poxp.can.width * poxp.pixRatio 
-				poxp.can.height= poxp.can.height * poxp.pixRatio 
-				poxp.pox.log(poxp.vrDisplay.displayName)
-				poxp.pox.log("vr canvas:"+poxp.can.width+" x "+poxp.can.height);
-			}).catch((err)=> {
-				console.log(err)
-			})		
-		
+				navigator.xr.requestSession("immersive-vr").then((xrSession)=> {
+					POXPDevice.session=xrSession
+					POXPDevice.isPresenting = true
+					console.log("vr start")
+					xrSession.updateRenderState({baseLayer: new XRWebGLLayer(xrSession,poxp.wwg.gl,{framebufferScaleFactor:poxp.pixRatio})});
+					xrSession.requestReferenceSpace("local").then((xrReferenceSpace) => {
+						POXPDevice.referenceSpace=xrReferenceSpace
+						POXPDevice.session.requestAnimationFrame(POXPDevice.loopf);
+						poxp.callEvent("vrchange",1)
+					});
+					xrSession.addEventListener("end", (ev)=>{
+							POXPDevice.session=null
+							POXPDevice.isPresenting = false
+							console.log("VR end")
+//							poxp.loop = window.requestAnimationFrame(POXPDevice.loopf) ;
+							poxp.callEvent("vrchange",0)
+					})
+				}); 
 		})
 	},
-	closeVR:function(poxp) {
-		poxp.vrDisplay.exitPresent().then( () =>{
-			console.log("VR end")
-		})
+	closeVR:function() {
+		console.log("vr closing")
+		POXPDevice.isPresenting = false
+		POXPDevice.session.end()
+	},
+	animationFrame:function(poxp,loopf,vrframe) {
+		POXPDevice.loopf = loopf 
+		if(POXPDevice.isPresenting ) {
+			if(!vrframe) return 
+				POXPDevice.session.requestAnimationFrame(loopf);
+				POXPDevice.vrFrame = vrframe 
+				poxp.isVR = true 
+//				console.log("vrframe")
+
+		} else {
+//			console.log("no vrframe")
+			poxp.loop = window.requestAnimationFrame(loopf) ;
+			poxp.isVR = false ;
+		}
+	},
+	submitFrame:function() {
+		if(POXPDevice.VRReady) {
+		}
+	},
+	getFrameData:function() {
+		if(POXPDevice.vrFrame) {
+//			console.log("getframe")
+			let pose=POXPDevice.vrFrame.getViewerPose(POXPDevice.referenceSpace);
+//			console.log(pose)
+			pose.orientation = [pose.transform.orientation.x,pose.transform.orientation.y,pose.transform.orientation.z,pose.transform.orientation.w]
+			pose.position = [pose.transform.position.x,pose.transform.position.y,pose.transform.position.z]
+			let frame = {pose:pose}
+			let webGLLayer=POXPDevice.session.renderState.baseLayer;
+//			console.log(webGLLayer)
+			POXPDevice.webGLLayer = webGLLayer
+			for (let i=0;i<=pose.views.length-1;i++) {
+				const v = pose.views[i] 
+				var viewport=webGLLayer.getViewport(v);
+				pose.views[i].viewport = viewport 
+				if(v.eye=="right") {
+					frame.rightViewMatrix = v.transform.inverse.matrix
+					frame.rightProjectionMatrix = v.projectionMatrix
+					frame.rightViewport = viewport 
+				} else if(v.eye == "left" ){
+					frame.leftViewMatrix = v.transform.inverse.matrix
+					frame.leftProjectionMatrix = v.projectionMatrix	
+					frame.leftViewport = viewport 			
+				}
+			}
+			POXPDevice.views = pose.views 
+			POXPDevice.viewport = {leftViewport:frame.leftViewport,rightViewport:frame.rightViewport}
+//			console.log(frame)
+			return frame 
+		}
+	},
+	getViewport:function(can) {
+		if( POXPDevice.isPresenting)
+			return POXPDevice.viewport
+		else 
+			return {leftViewport:{x:0,y:0,width:can.width/2,height:can.height},
+							rightViewport:{x:can.width/2,y:0,width:can.width/2,height:can.height}}
+	},
+	setDepth:function(camDepth) {
+		if(!POXPDevice.isPresenting) return
+		POXPDevice.session.updateRenderState({depthNear:camDepth.camNear, depthFar:camDepth.camFar})
+
+	},
+	getInput:function() {
+		if(!POXPDevice.isPresenting) return null
+		if(!POXPDevice.session.inputSources) return null
+		let ret = {}
+		for (let i of POXPDevice.session.inputSources) {
+			if(i==null) continue ;
+//			console.log(i)
+			let pose = POXPDevice.vrFrame.getPose(i.gripSpace,POXPDevice.referenceSpace)
+			let posetr = pose? POXPDevice.convTransform(pose.transform):null
+			if(i.gamepad) {
+				if(!ret.gamepad) ret.gamepad = {}
+				ret.gamepad[i.handedness] = {
+					handedness:i.handedness,
+					gamepad:i.gamepad,
+					profiles:i.profiles,
+					pose:posetr
+				}
+			}
+			if(i.hand) {
+				if(!ret.hand) ret.hand = {}
+				let hand= []
+				for(let ofs=0;ofs<25;ofs++) {
+					if(i.hand[ofs]!==null) {
+						let pose = POXPDevice.vrFrame.getJointPose(i.hand[ofs],POXPDevice.referenceSpace)
+						if(pose!=null) {
+							hand[ofs] = { radius:pose.radius,transform:POXPDevice.convTransform(pose.transform)}
+						} else hand[ofs] = null 
+					} else hand[ofs] = null
+				}
+				ret.hand[i.handedness] = {
+					handedness:i.handedness,
+					hand:hand,
+					profiles:i.profiles,		
+					pose:posetr
+				}
+			}
+		}
+//		console.log(ret)
+		return ret 
+	},
+	convTransform:function(transform) {
+		let ret = {}
+		if(transform.position) ret.position = new Vector(transform.position.x,transform.position.y,transform.position.z)
+		if(transform.orientation) ret.orientation = new Vector(transform.orientation.x,transform.orientation.y,transform.orientation.z,transform.orientation.w)
+		if(transform.matrix) ret.matrix = new Mat4(transform.matrix)
+		return ret 
 	}
 }// poxplayercamera object
 PoxPlayer.prototype.createCamera = function(cam) {
 	return new this.Camera(this,cam) ;
 }
-PoxPlayer.prototype.Camera = function(poxp,cam) {
+PoxPlayer.prototype.Camera = class Camera {
+constructor(poxp,cam) {
 	this.poxp = poxp ;
 	//camera initial
 	this.cam = {
@@ -4530,7 +5021,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		camGyro:true, // use gyro
 		gPad:true, //use gpad
 		sbase:0.06, 	//streobase 
-		moveSpeed:0.05,
+		moveSpeed:1.3,		// m/sec
 		rotAngle:30,
 		moveY:false,
 		padMoveUD:true,
@@ -4540,6 +5031,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
 	}
+
 	this.cama = false ; // on animation
 	this.rotX = 0 ;
 	this.rotY = 0 ;
@@ -4554,15 +5046,37 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 	this.camV =  [new CanvasMatrix4(),new CanvasMatrix4()]
 	this.vrv =  [new CanvasMatrix4(),new CanvasMatrix4()]
 	this.vrp =  [new CanvasMatrix4(),new CanvasMatrix4()]
-	if(window.VRFrameData!=undefined) this.vrFrame = new VRFrameData()
+	this.tempM =  new CanvasMatrix4()
+	this.pvy = false 
+	this.pvx = false 
+//	if(window.VRFrameData!=undefined) this.vrFrame = new VRFrameData()
 }
-PoxPlayer.prototype.Camera.prototype.setCam = function(cam) {
+setCam(cam) {
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
 	}
 	this.cama = false 
 }
-PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
+getCam() {
+	const ret = {
+		basePos:[this.cam.camCX,this.cam.camCY,this.cam.camCZ],
+		baseRot:[this.cam.camRX,this.cam.camRY,this.cam.camRZ],
+		position:Array.from(this.cam.campos),
+		headVec:Array.from(this.cam.headVec),
+	}
+	if(this.cam.orientation) ret.headOri = Array.from(this.cam.orientation)
+	else ret.headOri = [0,0,0,1]
+	if(this.cam.position) ret.headPos = Array.from(this.cam.position)
+	else ret.headPos = [0,0,0]
+	return ret 
+}
+vrchange(f) {
+	if(f) {
+		this.cam.camRX = 0
+		this.cam.camRZ = 0
+	}
+}
+event(ev,m) {
 	const mag = 300*this.poxp.pixRatio /this.poxp.can.width;
 	const scale = (this.poxp.pox.setting && this.poxp.pox.setting.scale)? this.poxp.pox.setting.scale :1 ;
 
@@ -4614,7 +5128,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 			break ;
 		case "keydown":
 			const z = this.cam.camd ;
-			const keymag= 0.2 ;
+			const keymag= this.cam.moveSpeed ;
 			let md = "" ;
 			this.keydown = true ;
 			if(m.altKey) {
@@ -4646,7 +5160,6 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 						break ;
 				
 					case "w":
-					case " ":
 						md = "f" ; break ;
 					case "s":
 						md = "b" ;break ;
@@ -4712,8 +5225,8 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 			break ;	
 		}
 }
-PoxPlayer.prototype.Camera.prototype.update = function(time) {
-	const ft = (this.poxp.ctime - this.poxp.ltime)*6/100
+update(time) {
+	const ft = (this.poxp.ctime - this.poxp.ltime)/1000
 //console.log(ft)
 	if(this.cam.camMode!="fix") {
 		this.cam.camRX += this.vrx ;
@@ -4742,47 +5255,49 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 		}
 	}
 }
-PoxPlayer.prototype.Camera.prototype.setPad = function(gpad,gpad2) {
-	let gp = gpad
-//	console.log(gp.dpad)
-	if(false) {
-		let cx =0,cy =0,cz=1
-		if(this.cam.orientation ) {
-			let x = this.cam.orientation[0] ;
-			let y = this.cam.orientation[1] ;
-			let z = this.cam.orientation[2] ;
-			let w = this.cam.orientation[3] ;
-			cx = -2*(-x*z-y*w) 
-			cy = -2*(-y*z+x*w)
-			cz = -(x*x+y*y-z*z-w*w)
-			let l = Math.hypot(cx,cy,cz)
-			cx /= l ,cy /=l, cz /= l 
-		}
-		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
-		this.cam.cv = cmat.multVec4(cx,cy,cz,0)
-	}
+setPad(gpad,gpad2) {
+	let gp = gpad?gpad:gpad2
+	if(!gp) return 
 	if(this.cam.camMode=="walk") {
-		if(this.cam.padMoveUD && gp.buttons[0] && gp.buttons[0].pressed) {
-			this.vcy = -gp.axes[1]*this.cam.moveSpeed
-		} else {
+		let axes = [gp.axes[0],gp.axes[1]]
+		if(gp.axes[2]!=undefined && gp.axes[2]!=0) axes[0] = gp.axes[2]
+		if(gp.axes[3]!=undefined && gp.axes[3]!=0) axes[1] = gp.axes[3]
+		if(this.cam.padMoveUD && gp.buttons[1] && gp.buttons[1].pressed) {
+			this.vcy = -axes[1]*this.cam.moveSpeed
+			this.pvy = true ;
+			return
+		} else if(this.pvy) {
 			this.vcy = 0 
-			let m = gp.buttons[2] && gp.buttons[2].pressed
-			let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
-
-			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
-				this.vcx = this.cam.headVec[0] * gp.axes[1]*mv
-				if(this.cam.moveY) this.vcy = this.cam.headVec[1] * gp.axes[1]*mv
-				this.vcz = this.cam.headVec[2] * gp.axes[1]*mv
-			} else {
+			this.pvy = false
+		}
+		let m = gp.buttons[2] && gp.buttons[2].pressed
+		let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
+		if(Math.abs(axes[0])<Math.abs(axes[1]) && Math.abs(axes[1])>0 ) {
+				this.vcx = -this.cam.headVec[0] * axes[1]*mv
+				if(this.cam.moveY) this.vcy = -this.cam.headVec[1] * axes[1]*mv
+				this.vcz = -this.cam.headVec[2] * axes[1]*mv
+				this.pvx = true
+				return 
+		} else if(this.pvx) {		
 				this.vcx = 0 
+				this.vcy = 0
 				this.vcz = 0 
-				if(this.cam.padRot && gp.dpad[0]>0) 
-					this.cam.camRY += ((gp.axes[0]>0)?1:-1) * this.cam.rotAngle
+				this.pvx = false 
+		}
+		if(this.cam.padRot && gp.dpad[0]>0) {
+			let rot = ((axes[0]>0)?1:-1) * this.cam.rotAngle
+			this.cam.camRY += rot
+			if(false && this.cam.position) {
+				let th = rot * RAD 
+				this.cam.camCX += Math.cos(th)*this.cam.position[0]+ Math.sin(th)*this.cam.position[2]
+				this.cam.camCZ += -Math.sin(th)*this.cam.position[0]+ Math.cos(th)*this.cam.position[2]
+				console.log(Math.cos(th)*this.cam.position[0]+ Math.sin(th)*this.cam.position[2]
+				,-Math.sin(th)*this.cam.position[0]+ Math.cos(th)*this.cam.position[2])
 			}
 		}
 	}
 }
-PoxPlayer.prototype.Camera.prototype.moveTo = function(x,y,z,opt) {
+moveTo(x,y,z,opt) {
 	if(this.cama) return 
 	let cx = (x!==null)?x:this.cam.camCX
 	let cy = (y!==null)?y:this.cam.camCY
@@ -4810,10 +5325,10 @@ PoxPlayer.prototype.Camera.prototype.moveTo = function(x,y,z,opt) {
 		this.cama = false 
 	}
 }
-PoxPlayer.prototype.Camera.prototype.moveCancel = function() {
+moveCancel() {
 	this.cama = false 
 }
-PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
+getMtx(scale,sf) {
 	const cam = this.cam ;
 	const can = this.poxp.render.wwg.can ;
 
@@ -4832,12 +5347,17 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			cx = cam.camVX ;
 			cy = cam.camVY ;
 			cz = cam.camVZ ;
+			this.cam.headVec = [cx,cy,cz,0]
 		}
 		else if(cam.camMode=="vr" || cam.camMode=="walk") {
 			// self camera mode 
 			cx = cam.camCX + Math.sin(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)
 			cy = cam.camCY + -Math.sin(cam.camRX*RAD)*1 ; 
 			cz = cam.camCZ + -Math.cos(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)	
+			let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0).rotate(-this.cam.camRZ,0,0,1)
+			upx = -Math.sin(cam.camRZ*RAD)
+			upy = Math.cos(cam.camRZ*RAD)
+			this.cam.headVec = cmat.multVec4(0,0,-1,0)
 		} else  {
 		// bird camera mode 
 			camd=  cam.camd*scale ;
@@ -4848,7 +5368,10 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			if(camd<0) {
 				cx = cam.camCX*2 ;cy = cam.camCY*2 ;cz = cam.camCZ*2 ;
 			}
+			let l = Math.hypot(cam.camCX,cam.camCY,cam.camCZ)
+			this.cam.headVec = [-cam.camCX/l,-cam.camCY/l,-cam.camCZ/l,0] 
 		}
+		this.cam.campos = [cam.camCX,cam.camCY,cam.camCZ]
 
 		this.camVP[0].makeIdentity()
 		this.camVP[1].makeIdentity()
@@ -4856,8 +5379,6 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camP[1].makeIdentity()
 		this.camV[0].makeIdentity()
 		this.camV[1].makeIdentity()
-		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
-		this.cam.headVec = cmat.multVec4(0,0,1,0)
 			
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
@@ -4883,32 +5404,36 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			this.camVP[0].load(this.camV[0]).multRight(this.camP[0])
 		}
 	}
-
 	if(this.poxp.isVR) {
 		
-		this.poxp.vrDisplay.depthNear = cam.camNear 
-		this.poxp.vrDisplay.depthFar = cam.camFar 
+		POXPDevice.setDepth({camNear:cam.camNear,camFar:cam.camFar})
 
-		this.poxp.vrDisplay.getFrameData(this.vrFrame)
+		vrFrame = POXPDevice.getFrameData()
 //		console.log(vrFrame)
-		if(!this.vrFrame) return 
-		this.cam.orientation = this.vrFrame.pose.orientation
-		this.cam.position = this.vrFrame.pose.position
-		this.vrv[1].load(this.vrFrame.rightViewMatrix)
-		this.vrv[0].load(this.vrFrame.leftViewMatrix)
-		this.vrp[1].load(this.vrFrame.rightProjectionMatrix)
-		this.vrp[0].load(this.vrFrame.leftProjectionMatrix)
+		if(!vrFrame) return 
+		this.cam.orientation = vrFrame.pose.orientation
+		this.cam.position = vrFrame.pose.position
+		if(!this.cam.position) this.cam.position = [0,0,0]
+		this.vrv[1].load(vrFrame.rightViewMatrix)
+		this.vrv[0].load(vrFrame.leftViewMatrix)
+		this.vrp[1].load(vrFrame.rightProjectionMatrix)
+		this.vrp[0].load(vrFrame.leftProjectionMatrix)
  
-		this.camV[0].makeIdentity()
+		this.tempM.makeIdentity()
 			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
-			.rotate(cam.camRY,0,1,0)
 			.rotate(cam.camRX,1,0,0)
+			.rotate(cam.camRY,0,1,0)
 			.rotate(cam.camRZ,0,0,1)
-		this.camV[1].load(this.camV[0])
-		this.camV[0].multRight( this.vrv[0] )
+
+		this.camV[0].load(this.vrv[0])
+		if(this.leftCorrMtx) this.camV[0].multRight(this.leftCorrMtx)
+		this.camV[0].multLeft( this.tempM )
 		this.camVP[0].load(this.camV[0]).multRight(this.vrp[0]) 
 		this.camP[0].load(this.vrp[0])
-		this.camV[1].multRight( this.vrv[1] )
+		
+		this.camV[1].load(this.vrv[1])
+		if(this.rightCorrMtx) this.camV[1].multRight(this.rightCorrMtx)
+		this.camV[1].multLeft( this.tempM )
 		this.camVP[1].load(this.camV[1]).multRight(this.vrp[1]) 
 		this.camP[1].load(this.vrp[1])
 		
@@ -4918,14 +5443,18 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			let y = this.cam.orientation[1] ;
 			let z = this.cam.orientation[2] ;
 			let w = this.cam.orientation[3] ;
-			cx = -2*(-x*z-y*w) 
-			cy = -2*(-y*z+x*w)
-			cz = -(x*x+y*y-z*z-w*w)
+			cx = 2*(-x*z-y*w) 
+			cy = 2*(-y*z+x*w)
+			cz = (x*x+y*y-z*z-w*w)
 			let l = Math.hypot(cx,cy,cz)
 			cx /= l ,cy /=l, cz /= l 
 		}
-		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.tempM.invert() 
+//		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+//		cmat.translate(cam.camCX,cam.camCY,cam.camCZ)
+		let cmat = this.tempM 
 		this.cam.headVec = cmat.multVec4(cx,cy,cz,0)
+		this.cam.campos = cmat.multVec4(this.cam.position[0],this.cam.position[1],this.cam.position[2],1).slice(0,3)
 
 		let ivr = new Mat4().load(this.camV[1]).invert() ;
 		let ivl = new Mat4().load(this.camV[0]).invert() ;
@@ -4938,11 +5467,11 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 	}
 //	console.log(camVP)
 	return [{camX:cam.camCX+ex[0],camY:cam.camCY+ey[0],camZ:cam.camCZ+ez[0], 
-		camV:this.camV[0],camVP:this.camVP[0],camP:this.camP[0], vrFrame:this.vrFrame},
+		camV:this.camV[0],camVP:this.camVP[0],camP:this.camP[0], vrFrame:vrFrame},
 	{camX:cam.camCX+ex[1],camY:cam.camCY+ey[1],camZ:cam.camCZ+ez[1],
-		camV:this.camV[1],camVP:this.camVP[1],camP:this.camP[1],vrFrame:this.vrFrame}] ;
+		camV:this.camV[1],camVP:this.camVP[1],camP:this.camP[1],vrFrame:vrFrame}] ;
 }
-
+} // class Camera
 //utils
 //console panel
 
@@ -4967,6 +5496,7 @@ constructor(render,opt) {
 	this.j2c.default.font = opt.font
 	this.j2c.default.textColor = opt.color
 	this.clearColor = opt.clearColor 
+	this.ctx = this.j2c.ctx
 
 	this.dd = []
 	let y = opt.lheight 
@@ -4979,9 +5509,10 @@ constructor(render,opt) {
 	const ptex = {name:"cpanel"+this.id,canvas:this.pcanvas,opt:{flevel:1,repeat:2,nomipmap:true}}
 	render.addTex(ptex) 
 	this.model = 
-		{geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
+		{name:"panel"+this.id,
+			geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
 		}).objModel(),
-			camFix:opt.camFix,
+			camFix:opt.camFix,layer:opt.layer,
 			bm:new CanvasMatrix4().rotate(opt.ry,0,1,0).translate(opt.pos),
 			blend:"alpha",
 			vs_uni:{uvMatrix:[1,0,0, 0,1,0, 0,0,0]},
