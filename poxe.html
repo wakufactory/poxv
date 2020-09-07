@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width" /> 
+<title>PolygonExplorerEditor </title>
+<script src="js/Vector.js?20200813"></script>
+<script src="js/WWG.js?20200816"></script>
+<script src="js/CanvasMatrix.js?20181231"></script>
+<script src="js/WWModel.js?20200707"></script>
+<script src="js/Pointer.js?20191209"></script>
+<script src="js/WBind.js"></script>
+<script src="js/GPad.js?20200827"></script>
+<script src="js/poxplayer.js?20200905"></script>
+<script src="js/poxp_device.js?20200827"></script>
+<script src="js/poxp_cam.js?20200826"></script>
+<script src="js/poxp_util.js?2020010911"></script>
+<script src="js/poxp_view.js?20200905"></script>
+<script src="js/poxp_profile.js?20200607"></script>
+<script src="js/json2canvas.js"></script>
+<script src="js/was.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.min.js" integrity="sha512-GoORoNnxst42zE3rYPj4bNBm0Q6ZRXKNH2D9nEmNvVF/z24ywVnijAWVi/09iBiVDQVf3UlZHpzhAJIdd9BXqw==" crossorigin="anonymous"></script>
+
+<script >
+const POXE ={} 
+const query = location.search.substr(1).split("&")
+onload = ()=> {
+	editor()
+	POXP.init()
+	POXP.load().then((d)=>{
+			const src = d.src 
+			if(src.scenes) {
+				POXE.e21.setValue(src.scenes[0].js,-1) ;
+				POXE.e22.setValue(src.scenes[0].vs,-1) ;
+				POXE.e23.setValue(src.scenes[0].fs,-1) ;	
+			} else {
+				POXE.e21.setValue(src.m,-1) ;
+				POXE.e22.setValue(src.vs,-1) ;
+				POXE.e23.setValue(src.fs,-1) ;					
+			}
+			if(src.settings) {
+				$('title').innerHTML = src.settings.name
+				POXE.e1.setValue(JSON.stringify(src.settings).replace(/,/g,",\n"),-1) ;	
+			}
+			if(src.modules) {
+				POXE.e41.setValue(src.modules[0],-1) ;
+				POXE.e42.setValue(src.modules[1],-1) ;		
+			}
+			if(src.workers) {
+				POXE.e51.setValue(src.workers[0],-1)
+			}
+			if(!POXE.loadfile && POXP.setting) {
+				POXE.loadfile = POXP.setting.name 
+			}
+			POXE.save(src)
+			POXP.set(src,d.query)
+	})
+}
+	
+function editor() {
+	window.onerror = function(msg, url, line, col, error) {  
+	    console.log(`${msg} lines:${line}-${col}`); 
+	};
+	POXE.ace() ;		//editor init	
+	$("b_apply").addEventListener("click", ()=>{
+		POXE.reload() ;
+	})
+	$("b_save").addEventListener("click", ()=>{
+		POXE.fsave()
+	})
+	$("editor").addEventListener("change", (ev)=>{
+		if(ev.target.checked) {
+			$("editp").style.display = "none" ;
+			$("viewp").style.width = "100%" ;
+		} else {
+			$("editp").style.display = "flex" ;
+			$("viewp").style.width = "50%" ;
+		}
+		POXP.poxp.resize() ;
+	})
+	$("b_cap").addEventListener("click", ()=>{
+		$("l_cap").setAttribute("download", POXP.setting.name+".png");
+		var img = $("screen1").toDataURL() ;
+		$("l_cap").href = img ;
+		$("cap_thumb").src = img ;
+	})
+	addvcursor()
+}
+function addvcursor() {
+	let d = document.createElement("div") 
+	d.innerHTML = "I"
+	d.style.position = "absolute" 
+	d.style.pointerEvents = "none"
+	d.style.color = "#a22"
+	d.style.textShadow = "1px 0 1px #eee" 
+	document.body.appendChild(d)
+	document.body.addEventListener("mousemove", (ev)=>{
+				d.style.top = `calc( ${ev.pageY}px - 0.7rem)` ;
+				d.style.left = ev.pageX + "px" ;				
+	})	
+}
+
+POXE.fsave = function() {
+	const data = {
+		version:2.0,
+		settings:JSON.parse(POXE.e1.getValue()),
+		modules:[POXE.e41.getValue(),POXE.e42.getValue()],
+		scenes:[
+			{js:POXE.e21.getValue(),vs:POXE.e22.getValue(),fs:POXE.e23.getValue()}
+		],
+		workers:[POXE.e51.getValue()]
+	}
+
+	const f = POXP.setting.name
+	const oData = new FormData()
+	oData.append("fname", f)
+	oData.append("data",JSON.stringify(data))
+	var oReq = new XMLHttpRequest()
+	oReq.open("POST", "save/save.php", true)
+	oReq.responseType = "json" ;
+	oReq.onload = function(oEvent) {
+		if (oReq.status == 200) {
+			if(oReq.response && oReq.response.status==0) {
+				$("m_save").innerHTML = "saved"
+				if(POXE.loadfile!=f) {
+					location.href = `?save/data/${f}.json`
+				}
+			}
+		} else {
+			alert("save error")
+		}
+	};
+	$("m_save").innerHTML = "" 
+	oReq.send(oData)
+}
+
+POXE.save = (data)=> {
+	data.version = "2.0" ;
+	var d = JSON.stringify(data) ;
+	localStorage.setItem("poxe_save",d) ;
+	$("m_save").innerHTML = "" 
+}
+
+POXE.reload = ()=> {
+	console.log("reload") ;
+	POXP.msg("------")
+	POXP.poxp.cls() ;
+	POXP.poxp.stop()  ;
+	const data = {
+		version:2.0,
+		settings:JSON.parse(POXE.e1.getValue()),
+		modules:[POXE.e41.getValue(),POXE.e42.getValue()],
+		scenes:[
+			{js:POXE.e21.getValue(),vs:POXE.e22.getValue(),fs:POXE.e23.getValue()}
+		],
+		workers:[POXE.e51.getValue()]
+	}
+	let q = query.slice(1)
+	POXP.set(data,{query:q}) ;
+	POXP.poxp.param.pause = false ;
+	$("m_save").innerHTML = "" 
+}
+
+POXE.ace = ()=> {
+	ace.config.set('basePath', "https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/") 
+	var fontsize = (document.body.offsetWidth<1000)?14:16 ;
+	var theme = "ace/theme/tomorrow_night" ;
+	var keybind = {
+	    name: 'save',
+	    bindKey: {win: 'Ctrl-S',  mac: 'Command-S'},
+	    exec: (editor)=> {
+	        POXE.reload() ;
+	    },
+	}
+		var keybind2 = {
+	    name: 'up',
+	    bindKey: {win: 'Ctrl-P',  mac: 'Ctrl-P'},
+	    exec: (editor)=> {
+	        editor.navigateUp(1) ;
+	    },
+	}
+
+	function setace(name,type) {
+		const e = ace.edit(name) ;
+		e.getSession().setMode(type);
+		e.setFontSize(fontsize);
+		e.setTheme(theme);
+		e.getSession().setTabSize(4);
+		e.getSession().setUseWrapMode(true);
+		e.getSession().setUseSoftTabs(false) ;
+		e.commands.addCommand(keybind);
+		e.commands.addCommand(keybind2);	
+		return e
+	}
+	POXE.e1 = setace("e1","ace/mode/json")
+	POXE.e21 = setace("e21","ace/mode/javascript")
+	POXE.e22 = setace("e22","ace/mode/glsl") ;
+	POXE.e23 = setace("e23","ace/mode/glsl") ;
+	POXE.e41 = setace("e41","ace/mode/typescript") ;
+	POXE.e42 = setace("e42","ace/mode/typescript") ;
+	POXE.e51 = setace("e51","ace/mode/typescript") ;
+}
+
+</script>
+<style>
+body,html {
+	margin:0 ;
+	width:100% ;
+	height:100% ;
+	font-size:16px ;
+}
+
+body {
+	display:flex ;
+	box-sizing: border-box ;
+	font-family:sans-serif ;
+}
+button {
+	font-size:1rem 
+}
+div.edit {
+	display:flex ;
+	flex-direction: column;
+	width:calc(60% - 5px) ;
+	height:100% ;
+	background-color:#222 ;
+	font-size:16px;
+}
+div.view {
+	position:relative ;
+	display:flex ;
+	flex-direction: column;
+	width:50%;
+	height:100% ;
+}
+div.sep {
+	width:5px ;
+	display:none ;
+	border:2px solid black ;
+	background-color:silver ;
+	cursor:col-resize ;
+}
+@media (max-aspect-ratio: 5/4 ) {
+	body {
+			flex-direction: column;
+	}
+	div.edit {
+		height:calc(60% - 5px) ;
+		width:100% ;
+		order:2 ;
+	}
+	div.view {
+		height:50%;
+		width:100% ;
+		order:1 ;
+	}
+}
+div.view canvas {
+	width:100% ;
+	height:100% ;
+}
+div.edit textarea {
+	font-size:1rem ;
+	font-family:monospace ;
+	height:33% ;
+	tab-size:4 ;
+	-webkit-overflow-scrolling : touch ;
+}
+
+#ebox {
+	height:calc(100% - 6rem) ;
+}
+#cc {
+	position:absolute ;
+	top:0;
+	left:0;
+	color:#eee ;
+	background-color:#222 ;
+	opacity:0.6 ;
+	vertical-align:baseline;
+}
+#pui input {
+
+}
+
+#pui div.t {
+	float:left;
+	width:3rem ;
+	padding-left:0.2rem ;
+	overflow:hidden ;
+}
+#ec {
+	height:2rem ;
+	color:#eee ;
+}
+#ec a {
+	color:#eee ;	
+}
+div.pad {
+	position:absolute ;
+	height:10rem ;
+	bottom:0rem;
+	color:#eee ;
+	background-color:#222 ;
+	opacity:0.6 ;
+	vertical-align:baseline;
+	font-size:10px ;	
+	user-select: none;
+	-webkit-user-select: none;
+}
+#padl {
+	left:0;	
+}
+#padr {
+	right:0;
+}
+div.pad button {
+	background-color:#aaa ;
+}
+div.pad button:hover {
+	background-color:#fff ;
+}
+
+#msg {
+	height:4rem ;
+	background-color:#444 ;
+	color:#eee ;
+	overflow-y:scroll ;
+}
+#msgc {
+	padding-left:1rem ;
+	line-height:100% ;
+}
+#cap_thumb {
+	height:1.5rem ;
+	border:1px dotted #eee ;
+	vertical-align: bottom;
+}
+label,button {
+	cursor:pointer ;	
+}
+.tabs {
+    position: relative;
+    height:100% ;
+    padding: 0;
+    margin:0 ;
+}
+.tabs li {
+    list-style: none;
+    display: inline-block;
+}
+.tabs input[type=radio] {
+    display: none;
+}
+.tabs label {
+    display: block;
+    cursor: pointer;
+    font-size:0.8rem ;
+    font-weight:bold ;
+    height:1rem ;
+    padding: 3px;
+    background-color: #222;
+    color: #fff;
+}
+.tabs label:hover {
+    background-color: #cccccc;
+    color: #000000;
+}
+.tabs input[type=radio]:checked + label {
+    background-color: #eee;
+    color: #000000;
+}
+.tabs .contents {
+    display: none;
+    position: absolute;
+    width:100% ;
+    height:calc(100% - 1.5rem) ;
+    top:1.5rem ;
+    left: 0;
+    overflow-y:hidden ;
+}
+.tabs input[type=radio]:checked + label + .contents{
+    display: block;
+}
+/* swicth (single checkbox) */
+.oswitch input {
+	display:none ;
+}
+.oswitch .sbtn {
+	font-family:"apple color emoji",sans-serif;
+}
+.oswitch input[id=pause] + .sbtn:before {
+	content: "P" ;
+}
+.oswitch input[id=pause]:checked + .sbtn:before {
+	content: ">" ;
+}
+.oswitch input[id=editor] + .sbtn:before {
+	content: "<" ;
+}
+.oswitch input[id=editor]:checked + .sbtn:before {
+	content: ">" ;
+}
+#vrbtn {
+	position:absolute ;
+	width:50px ;
+	height:50px ;
+	top:0;
+	left:calc( 100% - 50px ) ;
+	opacity: 0.8 ;
+	background-color:#ccc;
+	background-position: center;
+	background-image:url("img/goggle.png") ;
+	background-repeat:no-repeat;
+}
+#footer {
+	position:absolute ;
+	top:calc(100% - 2rem) ;
+	color:#888 ;
+}
+
+#cursor {
+	position:absolute ;
+	pointer-events: none ;
+}
+#e4 textarea{
+	width:100% ;
+	height:calc(100% - 2px);
+	border:0;
+	background-color:black ;
+	color:white;
+	font-size:12px;
+}
+</style>
+<body>
+<div class=edit id=editp>
+<div id=ec>
+<span id=title></span>
+<button id=b_save style="margin-left:10rem">SAVE</button><span id=m_save></span>
+<button id=b_apply style="margin-left:3rem">APPLY</button>
+<br/>
+</div>
+<div id=ebox>
+<ul class=tabs>
+   <li>
+  	<input name="tab" id="tab3" type="radio"  />
+	<label for="tab3" style="color:green">&nbsp;log&nbsp;</label>
+	<div class="contents tab3" id=e4>
+		<textarea id=msglog></textarea>
+	</div>
+  </li>
+  <li>
+  	<input name="tab" id="tab1" type="radio"  />
+	<label for="tab1">setting</label>
+	<div class="contents tab1" id=e1>e1</div>
+  </li>
+   <li>
+  	<input name="tab" id="tab2" type="radio" checked />
+	<label for="tab2">scenes</label>
+	<div class="contents tab2" id=e2>
+			<ul class=tabs>
+		  <li>
+		  	<input name="tab2" id="tab21" type="radio" checked />
+			<label for="tab21">javascript</label>
+			<div class="contents tab21" id=e21>e21</div>
+		  </li>
+		   <li>
+		  	<input name="tab2" id="tab22" type="radio"/>
+			<label for="tab22">v-shader</label>
+			<div class="contents tab22" id=e22>e22</div>
+		  </li>
+		   <li>
+		  	<input name="tab2" id="tab23" type="radio"/>
+			<label for="tab23">f-shader</label>
+			<div class="contents tab23" id=e23>e23</div>
+		  </li>
+			</ul>	
+	</div>
+  </li>
+   <li>
+  	<input name="tab" id="tab4" type="radio"  />
+	<label for="tab4">modules</label>
+	<div class="contents tab4" id=e4>
+			<ul class=tabs>
+		  <li>
+		  	<input name="tab4" id="tab41" type="radio" checked/>
+			<label for="tab41">m1</label>
+			<div class="contents tab41" id=e41>e41</div>
+		  </li>
+		   <li>
+		  	<input name="tab4" id="tab42" type="radio"/>
+			<label for="tab42">m2</label>
+			<div class="contents tab42" id=e42>e42</div>
+		  </li>
+			</ul>	
+	</div>
+  </li>
+   <li>
+  	<input name="tab" id="tab5" type="radio"  />
+	<label for="tab5">worker</label>
+	<div class="contents tab5" id=e5>
+			<ul class=tabs>
+		  <li>
+		  	<input name="tab5" id="tab51" type="radio" checked/>
+			<label for="tab51">w1</label>
+			<div class="contents tab51" id=e51>//web worker</div>
+		  </li>
+		   <li>
+		  	<input name="tab5" id="tab52" type="radio"/>
+			<label for="tab52">w2</label>
+			<div class="contents tab52" id=e52>//web worker</div>
+		  </li>
+			</ul>	
+	</div>
+  </li>
+</ul> 
+</div>
+<div id=msg><div id=msgc></div></div>
+</div>
+<div class=sep id=vsep></div>
+<div class=view id=viewp>
+<div id=cc>
+<span class=oswitch><label><input type=checkbox id=editor><span class=sbtn></span></label></span>
+<label><input type=checkbox id=isstereo>stereo</label>
+<label><input type=checkbox id=camselect>gcam</label>
+<span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
+[<span id="fps"></span>FPS]
+ <button id=b_cap>CAP</button><a href="" id=l_cap> <img id="cap_thumb" /></a></a>
+<div id=pui>
+</div>
+</div>
+<div class=pad id=padl>
+<table>
+<tr><td colspan=3 align=center><button id=bc_trig data-key=0>TRIG</button></td></tr>
+<tr><td></td><td><button id=bc_u data-key="2" data-dir=2>↑</button></td><td></td></tr>
+<tr><td><button id=bc_l data-key="2" data-dir=0>←</button></td><td></td><td><button id=bc_r data-key="2" data-dir=1>→</button></td></tr>
+<tr><td></td><td><button id=bc_d data-key="2" data-dir=3>↓</button></td><td></td></tr>
+<tr><td><button id=bc_g data-key=1>G</button></td><td><button id=bc_b data-key=5>B</button></td><td><button id=bc_a data-key=4>A</button></td></tr>
+</table>
+</div>
+<div class=pad id=padr>
+<table>
+<tr><td colspan=3 align=center><button id=bc_trig data-key=0>TRIG</button></td></tr>
+<tr><td></td><td><button id=bc_u data-key="2" data-dir=2>↑</button></td><td></td></tr>
+<tr><td><button id=bc_l data-key="2" data-dir=0>←</button></td><td></td><td><button id=bc_r data-key="2" data-dir=1>→</button></td></tr>
+<tr><td></td><td><button id=bc_d data-key="2" data-dir=3>↓</button></td><td></td></tr>
+<tr><td><button id=bc_g data-key=1>G</button></td><td><button id=bc_b data-key=5>B</button></td><td><button id=bc_a data-key=4>A</button></td></tr>
+</table>
+</div>
+<div id=vrbtn></div>
+<canvas id="screen1"></canvas>
+<div id=footer></div>
+</div>
+</body>
+
+	
