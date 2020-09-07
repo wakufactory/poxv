@@ -26,7 +26,7 @@ onload = function() {
 function list(l) {
 	var r = [] ;
 	for(var i = l.length-1 ; i>=0 ;i--) {
-		r.push(`<li><span class=n>${l[i]['name']}</span><span class=t>${l[i]['mtime']}</span> <a href="poxe.html?save/data/${l[i]['name']}" target="_blank">EDIT</a> <a href="../poxd/view.html?save/data/${l[i]['name']}" target="_blank">VIEW</a>
+		r.push(`<li><span class=n>${l[i]['name']}</span><span class=t>${l[i]['mtime']}</span> <a href="poxe.html?save/data/${l[i]['name']}" target="_blank">EDIT</a> <a href="view.html?save/data/${l[i]['name']}" target="_blank">VIEW</a>
 <a href="tohtml.php?save/data/${l[i]['name']}" target="_blank">html</a>
 </li>`)
 	}

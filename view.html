@@ -6,12 +6,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerPlayer</title>
-<script src="js/poxp_all.js?20290102" defer></script>
-<script src="js/poxp_view.js?20200101"></script>
+<script src="js/poxp_all.js?2020906" defer></script>
+<script src="js/poxp_view.js?20200906"></script>
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
-	POXP.init(()=>{
+	POXP.init()
+	POXP.load().then(d=>{
+		POXP.set(d.src,d.query)
 		$("loading").style.display = "none" ;		
 	})
 
@@ -150,7 +152,7 @@ div.pad button:hover {
 <tr><td></td><td><button id=bc_u data-key="0" data-dir=2>⬆️</button></td><td></td></tr>
 <tr><td><button id=bc_l data-key="0" data-dir=0>⬅️</button></td><td></td><td><button id=bc_r data-key="0" data-dir=1>➡️</button></td></tr>
 <tr><td></td><td><button id=bc_d data-key="0" data-dir=3>⬇️</button></td><td></td></tr>
-<tr><td><button id=bc_g data-key=2>G</button></td><td><button id=bc_b data-key=4>B</button></td><td><button id=bc_a data-key=3>A</button></td></tr>
+<tr><td><button id=bc_g data-key=2>G</button></td><td><button id=bc_b data-key=4>Y</button></td><td><button id=bc_a data-key=3>X</button></td></tr>
 </table>
 </div>
 <div class=pad id=padr>

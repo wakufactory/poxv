@@ -206,6 +206,8 @@ setpox(POX) {
 			for(let k in data.env) this.render.data.env[k] = data.env[k]  
 		}		
 	}
+	POX.addTex = (tex)=>this.render.addTex(tex)
+	POX.updateTex = (tex,data)=>this.render.updateTex(tex,data)
 	
 }
 async setsrc(sc,settings) {

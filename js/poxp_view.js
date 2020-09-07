@@ -151,12 +151,16 @@ POXP.set = function(src,q) {
 	if(src.scenes) {
 		
 		if(src.modules) {
-			const m1 = await POXP.poxp.loadModuleSrc(src.modules[0])
-			POXP.poxp.m1 = m1 
+			try {
+				const m1 = await POXP.poxp.loadModuleSrc(src.modules[0])
+				POXP.poxp.m1 = m1 
+			} catch(err) {}
 		}
 		if(src.workers) {
-			const bb = new Blob( [src.workers[0]]);
-			POXP.poxp.w1 = new Worker(window.URL.createObjectURL(bb)); 
+			try {
+				const bb = new Blob( [src.workers[0]]);
+				POXP.poxp.w1 = new Worker(window.URL.createObjectURL(bb))
+			} catch(err) {}
 		}
 
 		POXP.setting = src.settings
