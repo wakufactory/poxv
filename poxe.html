@@ -11,11 +11,11 @@
 <script src="js/Pointer.js?20191209"></script>
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js?20200827"></script>
-<script src="js/poxplayer.js?20200905"></script>
-<script src="js/poxp_device.js?20200827"></script>
+<script src="js/poxplayer.js?20200921"></script>
+<script src="js/poxp_device.js?20201028"></script>
 <script src="js/poxp_cam.js?20200826"></script>
 <script src="js/poxp_util.js?2020010911"></script>
-<script src="js/poxp_view.js?20200905"></script>
+<script src="js/poxp_view.js?20200911"></script>
 <script src="js/poxp_profile.js?20200607"></script>
 <script src="js/json2canvas.js"></script>
 <script src="js/was.js"></script>
@@ -29,25 +29,25 @@ onload = ()=> {
 	POXP.init()
 	POXP.load().then((d)=>{
 			const src = d.src 
-			if(src.scenes) {
-				POXE.e21.setValue(src.scenes[0].js,-1) ;
-				POXE.e22.setValue(src.scenes[0].vs,-1) ;
-				POXE.e23.setValue(src.scenes[0].fs,-1) ;	
+			if(src.renders) {
+				POXE.er11.setValue(src.renders[0].js,-1) ;
+				POXE.er12.setValue(src.renders[0].vs,-1) ;
+				POXE.er13.setValue(src.renders[0].fs,-1) ;	
 			} else {
-				POXE.e21.setValue(src.m,-1) ;
-				POXE.e22.setValue(src.vs,-1) ;
-				POXE.e23.setValue(src.fs,-1) ;					
+				POXE.er11.setValue(src.m,-1) ;
+				POXE.er12.setValue(src.vs,-1) ;
+				POXE.er13.setValue(src.fs,-1) ;					
 			}
 			if(src.settings) {
 				$('title').innerHTML = src.settings.name
 				POXE.e1.setValue(JSON.stringify(src.settings).replace(/,/g,",\n"),-1) ;	
 			}
 			if(src.modules) {
-				POXE.e41.setValue(src.modules[0],-1) ;
-				POXE.e42.setValue(src.modules[1],-1) ;		
+				POXE.em1.setValue(src.modules[0],-1) ;
+				POXE.em2.setValue(src.modules[1],-1) ;		
 			}
 			if(src.workers) {
-				POXE.e51.setValue(src.workers[0],-1)
+				POXE.ew1.setValue(src.workers[0],-1)
 			}
 			if(!POXE.loadfile && POXP.setting) {
 				POXE.loadfile = POXP.setting.name 
@@ -104,11 +104,11 @@ POXE.fsave = function() {
 	const data = {
 		version:2.0,
 		settings:JSON.parse(POXE.e1.getValue()),
-		modules:[POXE.e41.getValue(),POXE.e42.getValue()],
-		scenes:[
-			{js:POXE.e21.getValue(),vs:POXE.e22.getValue(),fs:POXE.e23.getValue()}
+		modules:[POXE.em1.getValue(),POXE.em2.getValue()],
+		renders:[
+			{js:POXE.er11.getValue(),vs:POXE.er12.getValue(),fs:POXE.er13.getValue()}
 		],
-		workers:[POXE.e51.getValue()]
+		workers:[POXE.ew1.getValue()]
 	}
 
 	const f = POXP.setting.name
@@ -149,11 +149,11 @@ POXE.reload = ()=> {
 	const data = {
 		version:2.0,
 		settings:JSON.parse(POXE.e1.getValue()),
-		modules:[POXE.e41.getValue(),POXE.e42.getValue()],
-		scenes:[
-			{js:POXE.e21.getValue(),vs:POXE.e22.getValue(),fs:POXE.e23.getValue()}
+		modules:[POXE.em1.getValue(),POXE.em2.getValue()],
+		renders:[
+			{js:POXE.er11.getValue(),vs:POXE.er12.getValue(),fs:POXE.er13.getValue()}
 		],
-		workers:[POXE.e51.getValue()]
+		workers:[POXE.ew1.getValue()]
 	}
 	let q = query.slice(1)
 	POXP.set(data,{query:q}) ;
@@ -163,7 +163,7 @@ POXE.reload = ()=> {
 
 POXE.ace = ()=> {
 	ace.config.set('basePath', "https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/") 
-	var fontsize = (document.body.offsetWidth<1000)?14:16 ;
+	var fontsize = (document.body.offsetWidth<1000)?12:14 ;
 	var theme = "ace/theme/tomorrow_night" ;
 	var keybind = {
 	    name: 'save',
@@ -193,12 +193,12 @@ POXE.ace = ()=> {
 		return e
 	}
 	POXE.e1 = setace("e1","ace/mode/json")
-	POXE.e21 = setace("e21","ace/mode/typescript")
-	POXE.e22 = setace("e22","ace/mode/glsl") ;
-	POXE.e23 = setace("e23","ace/mode/glsl") ;
-	POXE.e41 = setace("e41","ace/mode/typescript") ;
-	POXE.e42 = setace("e42","ace/mode/typescript") ;
-	POXE.e51 = setace("e51","ace/mode/typescript") ;
+	POXE.er11 = setace("er11","ace/mode/typescript")
+	POXE.er12 = setace("er12","ace/mode/glsl") ;
+	POXE.er13 = setace("er13","ace/mode/glsl") ;
+	POXE.em1 = setace("em1","ace/mode/typescript") ;
+	POXE.em2 = setace("em2","ace/mode/typescript") ;
+	POXE.ew1 = setace("ew1","ace/mode/typescript") ;
 }
 
 </script>
@@ -207,7 +207,7 @@ body,html {
 	margin:0 ;
 	width:100% ;
 	height:100% ;
-	font-size:16px ;
+	font-size:12px ;
 }
 
 body {
@@ -454,29 +454,53 @@ label,button {
 	<label for="tab1">setting</label>
 	<div class="contents tab1" id=e1></div>
   </li>
-   <li>
-  	<input name="tab" id="tab2" type="radio" checked />
-	<label for="tab2">scenes</label>
-	<div class="contents tab2" id=e2>
+  <li>
+  <input name="tab" id="tabr1" type="radio" checked />
+	<label for="tabr1">render0	</label>
+	<div class="contents tab2" id=er1>
 			<ul class=tabs>
 		  <li>
-		  	<input name="tab2" id="tab21" type="radio" checked />
-			<label for="tab21">javascript</label>
-			<div class="contents tab21" id=e21></div>
+		  	<input name="tabr1" id="tabr11" type="radio" checked />
+			<label for="tabr11">javascript</label>
+			<div class="contents tab21" id=er11></div>
 		  </li>
 		   <li>
-		  	<input name="tab2" id="tab22" type="radio"/>
-			<label for="tab22">v-shader</label>
-			<div class="contents tab22" id=e22></div>
+		  	<input name="tabr1" id="tabr12" type="radio"/>
+			<label for="tabr12">v-shader</label>
+			<div class="contents tab22" id=er12></div>
 		  </li>
 		   <li>
-		  	<input name="tab2" id="tab23" type="radio"/>
-			<label for="tab23">f-shader</label>
-			<div class="contents tab23" id=e23></div>
+		  	<input name="tabr1" id="tabr13" type="radio"/>
+			<label for="tabr13">f-shader</label>
+			<div class="contents tab23" id=er13></div>
 		  </li>
 			</ul>	
 	</div>
   </li>
+     <li>
+  	<input name="tab" id="tabr2" type="radio" />
+	<label for="tabr2">render1</label>
+	<div class="contents tab2" id=er2>
+			<ul class=tabs>
+		  <li>
+		  	<input name="tabr2" id="tabr21" type="radio" checked />
+			<label for="tabr21">javascript</label>
+			<div class="contents tab21" id=er21></div>
+		  </li>
+		   <li>
+		  	<input name="tabr2" id="tabr22" type="radio"/>
+			<label for="tabr22">v-shader</label>
+			<div class="contents tab22" id=er22></div>
+		  </li>
+		   <li>
+		  	<input name="tabr2" id="tabr23" type="radio"/>
+			<label for="tabr23">f-shader</label>
+			<div class="contents tab23" id=er23></div>
+		  </li>
+			</ul>	
+	</div>
+  </li>
+
    <li>
   	<input name="tab" id="tab4" type="radio"  />
 	<label for="tab4">modules</label>
@@ -485,12 +509,12 @@ label,button {
 		  <li>
 		  	<input name="tab4" id="tab41" type="radio" checked/>
 			<label for="tab41">m1</label>
-			<div class="contents tab41" id=e41>//module</div>
+			<div class="contents tab41" id=em1>//module</div>
 		  </li>
 		   <li>
 		  	<input name="tab4" id="tab42" type="radio"/>
 			<label for="tab42">m2</label>
-			<div class="contents tab42" id=e42>//module</div>
+			<div class="contents tab42" id=em2>//module</div>
 		  </li>
 			</ul>	
 	</div>
@@ -503,12 +527,12 @@ label,button {
 		  <li>
 		  	<input name="tab5" id="tab51" type="radio" checked/>
 			<label for="tab51">w1</label>
-			<div class="contents tab51" id=e51>//web worker</div>
+			<div class="contents tab51" id=ew1>//web worker</div>
 		  </li>
 		   <li>
 		  	<input name="tab5" id="tab52" type="radio"/>
 			<label for="tab52">w2</label>
-			<div class="contents tab52" id=e52>//web worker</div>
+			<div class="contents tab52" id=ew2>//web worker</div>
 		  </li>
 			</ul>	
 	</div>

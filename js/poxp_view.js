@@ -148,12 +148,13 @@ POXP.set = function(src,q) {
 
 	return new Promise(async (resolve,reject)=>{
 		
-	if(src.scenes) {
+	if(src.renders) {
 		
 		if(src.modules) {
 			try {
 				const m1 = await POXP.poxp.loadModuleSrc(src.modules[0])
 				POXP.poxp.m1 = m1 
+				for(k in m1) console.log(k)
 			} catch(err) {}
 		}
 		if(src.workers) {
@@ -165,7 +166,8 @@ POXP.set = function(src,q) {
 
 		POXP.setting = src.settings
 		document.title = `PoExE:${POXP.setting.name}`
-		POXP.poxp.setsrc(src.scenes[0],src.settings).then((pox)=>{
+		if(src.settings.copyright) $("footer").innerHTML = POXP.setting.copyright ;
+		POXP.poxp.setsrc(src.renders[0],src.settings).then((pox)=>{
 			POXP.msg("eval ok")			
 		}).catch((err)=>{
 			console.log(err)
@@ -173,28 +175,7 @@ POXP.set = function(src,q) {
 			POXP.msg(POXP.poxp.emsg);
 			reject()
 		})	
-	} else {
-		POXP.poxp.set(src,q,$('pui')).then((pox)=> {
-			if(pox===null) {
-				POXP.msg(POXP.poxp.emsg)
-				reject()
-				return 
-			}
-			POXP.msg("eval ok") ;
-	//		console.log(pox);
-			POXP.setting = pox.setting ;
-				
-	//		poxp.setParam($('pui'))
-	//		$('bc').style.display = (pox.setting.cam && pox.setting.cam.camMode=="walk")?"block":"none" 
-			if(POXP.setting.copyright) $("footer").innerHTML = POXP.setting.copyright ;
-			resolve(pox)
-		}).catch((err)=>{
-			console.log(err)
-			console.log("catch")
-			POXP.msg(POXP.poxp.emsg);
-			reject()
-		})
-	}
+	} 
 })
 }
 POXP.msg = (msg)=> {

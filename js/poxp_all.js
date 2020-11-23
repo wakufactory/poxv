@@ -3950,9 +3950,11 @@ constructor(can,opt) {
 	this.setMouseEvent() ;
 	// VR init 
 	POXPDevice.checkVR(this).then(f=>{
-		if(f) console.log((POXPDevice.vrDisplay)?"WebVR":"WebXR"+" supported")
+		if(f) console.log("WebXR supported")
 		this.vrReady = f 
 	})
+	this.scenes = []
+	
 	//create default camera
 	this.cam0 = this.createCamera()
 	this.cam1 = this.createCamera() ;
@@ -4085,6 +4087,12 @@ setpox(POX) {
 			for(let k in data.env) this.render.data.env[k] = data.env[k]  
 		}		
 	}
+	POX.addTex = (tex)=>this.render.addTex(tex)
+	POX.updateTex = (tex,data)=>this.render.updateTex(tex,data)
+	
+}
+async loadScene(scene) {
+
 	
 }
 async setsrc(sc,settings) {
@@ -4095,7 +4103,7 @@ async setsrc(sc,settings) {
 	})
 }
 async set(d,param={},uidom) { 
-
+return
 	const VS = d.vs ;
 	const FS = d.fs ;
 	this.pox.src = d 
@@ -4402,6 +4410,7 @@ setScene(sc) {
 	if(!sset.primaryPad) sset.primaryPad = "right";
 	
 	if(sc.cam) pox.setting.cam = sc.cam
+	if(sc.param) pox.param = sc.param
 	sc.vshader = {text:pox.src.vs} ;
 	sc.fshader = {text:pox.src.fs} ;
 	pox.scene = sc ;
@@ -4646,6 +4655,7 @@ setScene(sc) {
 		let mtx2 = modelMtx2(render,camm) ;
 		if(Param.isStereo || self.isVR) {
 			let vp = POXPDevice.getViewport(can)
+			render.viewport = vp 
 			if(POXPDevice.isPresenting) {
 //				console.log("fbs")
 				render.gl.bindFramebuffer(render.gl.FRAMEBUFFER, 
@@ -4858,7 +4868,8 @@ const POXPDevice = {
 	},
 	presentVR:function(poxp) {
 		return new Promise( (resolve,reject)=>{
-				navigator.xr.requestSession("immersive-vr").then((xrSession)=> {
+				navigator.xr.requestSession("immersive-vr",
+				{optionalFeatures: [ 'hand-tracking' ]}).then((xrSession)=> {
 					POXPDevice.session=xrSession
 					POXPDevice.isPresenting = true
 					console.log("vr start")
@@ -4916,6 +4927,7 @@ const POXPDevice = {
 			for (let i=0;i<=pose.views.length-1;i++) {
 				const v = pose.views[i] 
 				var viewport=webGLLayer.getViewport(v);
+				
 				pose.views[i].viewport = viewport 
 				if(v.eye=="right") {
 					frame.rightViewMatrix = v.transform.inverse.matrix

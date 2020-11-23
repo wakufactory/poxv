@@ -19,7 +19,8 @@ const POXPDevice = {
 	},
 	presentVR:function(poxp) {
 		return new Promise( (resolve,reject)=>{
-				navigator.xr.requestSession("immersive-vr").then((xrSession)=> {
+				navigator.xr.requestSession("immersive-vr",
+				{optionalFeatures: [ 'hand-tracking' ]}).then((xrSession)=> {
 					POXPDevice.session=xrSession
 					POXPDevice.isPresenting = true
 					console.log("vr start")
@@ -77,6 +78,7 @@ const POXPDevice = {
 			for (let i=0;i<=pose.views.length-1;i++) {
 				const v = pose.views[i] 
 				var viewport=webGLLayer.getViewport(v);
+				
 				pose.views[i].viewport = viewport 
 				if(v.eye=="right") {
 					frame.rightViewMatrix = v.transform.inverse.matrix
