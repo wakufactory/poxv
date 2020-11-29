@@ -2159,7 +2159,7 @@ CanvasMatrix4.prototype.invert = function()
     // then the inverse matrix is not unique.
     var det = this._determinant4x4();
 
-    if (Math.abs(det) < 1e-8)
+    if (Math.abs(det) < 1e-32)
         return null;
 
     this._makeAdjoint();
