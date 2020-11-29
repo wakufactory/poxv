@@ -6,16 +6,16 @@
 <title>PolygonExplorerEditor </title>
 <script src="js/Vector.js?20200813"></script>
 <script src="js/WWG.js?20200816"></script>
-<script src="js/CanvasMatrix.js?20181231"></script>
-<script src="js/WWModel.js?20200707"></script>
+<script src="js/CanvasMatrix.js?20201129"></script>
+<script src="js/WWModel.js?20201129"></script>
 <script src="js/Pointer.js?20191209"></script>
-<script src="js/WBind.js"></script>
+<script src="js/WBind.js?20201129"></script>
 <script src="js/GPad.js?20200827"></script>
-<script src="js/poxplayer.js?20200921"></script>
+<script src="js/poxplayer.js?20201129"></script>
 <script src="js/poxp_device.js?20201028"></script>
 <script src="js/poxp_cam.js?20200826"></script>
 <script src="js/poxp_util.js?2020010911"></script>
-<script src="js/poxp_view.js?20200911"></script>
+<script src="js/poxp_view.js?20201129"></script>
 <script src="js/poxp_profile.js?20200607"></script>
 <script src="js/json2canvas.js"></script>
 <script src="js/was.js"></script>
@@ -78,12 +78,7 @@ function editor() {
 		}
 		POXP.poxp.resize() ;
 	})
-	$("b_cap").addEventListener("click", ()=>{
-		$("l_cap").setAttribute("download", POXP.setting.name+".png");
-		var img = $("screen1").toDataURL() ;
-		$("l_cap").href = img ;
-		$("cap_thumb").src = img ;
-	})
+
 	addvcursor()
 }
 function addvcursor() {
@@ -216,7 +211,7 @@ body {
 	font-family:sans-serif ;
 }
 button {
-	font-size:1rem 
+	font-size:0.8rem 
 }
 div.edit {
 	display:flex ;
@@ -224,7 +219,6 @@ div.edit {
 	width:calc(60% - 5px) ;
 	height:100% ;
 	background-color:#222 ;
-	font-size:16px;
 }
 div.view {
 	position:relative ;
@@ -232,6 +226,7 @@ div.view {
 	flex-direction: column;
 	width:50%;
 	height:100% ;
+	overflow:hidden ;
 }
 div.sep {
 	width:5px ;
@@ -280,9 +275,8 @@ div.edit textarea {
 	vertical-align:baseline;
 }
 #pui input {
-
+	font-size:0.8rem ;
 }
-
 #pui div.t {
 	float:left;
 	width:3rem ;
@@ -335,6 +329,19 @@ div.pad button:hover {
 	height:1.5rem ;
 	border:1px dotted #eee ;
 	vertical-align: bottom;
+}
+#loading {
+	position:absolute ;
+	top:0;
+	left:0;
+	width:100% ;
+	height:100% ;	
+	pointer-events: none ;
+	display:none;
+}
+#loading img {
+	margin-top:calc(50vh - 33px) ;
+	margin-left:calc(25vw  - 33px);
 }
 label,button {
 	cursor:pointer ;	
@@ -543,13 +550,13 @@ label,button {
 </div>
 <div class=sep id=vsep></div>
 <div class=view id=viewp>
+
 <div id=cc>
 <span class=oswitch><label><input type=checkbox id=editor><span class=sbtn></span></label></span>
 <label><input type=checkbox id=isstereo>stereo</label>
 <label><input type=checkbox id=camselect>gcam</label>
 <span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
 [<span id="fps"></span>FPS]
- <button id=b_cap>CAP</button><a href="" id=l_cap> <img id="cap_thumb" /></a></a>
 <div id=pui>
 </div>
 </div>
@@ -573,6 +580,7 @@ label,button {
 </div>
 <div id=vrbtn></div>
 <canvas id="screen1"></canvas>
+<div id=loading><img src="img/guruguru.gif"></div>
 <div id=footer></div>
 </div>
 </body>

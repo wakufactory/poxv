@@ -1443,11 +1443,15 @@ objModel(addvec,mode) {
 			nz = n[i][2] ;
 		} else {
 			//面法線の合成
+			if(!sn[i]) {
+				nx =0,ny=0,nz=0
+			} else {
 			for(let j=0;j<sn[i].length;j++) {
 				let ii = sn[i][j] ;
 				nx += sf[ii][0] ;
 				ny += sf[ii][1] ;
 				nz += sf[ii][2] ;
+			}
 			}
 		}
 		let vn = Math.hypot(nx,ny,nz) ;
@@ -1783,7 +1787,7 @@ static async loadObj2(path,opt) {
 				}
 				if(cmd == "mtllib") {
 					if(path.constructor == File ){
-							mtlspath.push(	ll[1])
+							mtlspath.push(	ll.splice(1).join(" "))
 						 return
 					}
 					let pp = path.split("/") 
@@ -1880,7 +1884,7 @@ static async loadMtl(path) {
 				case "map_Kd":
 				case "map_Ka":
 				case "map_Ks":
-					mtls[mtlname][cmd] = ll[0]
+					mtls[mtlname][cmd] = ll.join(" ")
 					break;
 			}
 		}).then(r=>{
@@ -4106,7 +4110,9 @@ setpox(POX) {
 	}
 	POX.addTex = (tex)=>this.render.addTex(tex)
 	POX.updateTex = (tex,data)=>this.render.updateTex(tex,data)
-	
+	POX.loading = (f)=>{
+		if($('loading')) $('loading').style.display = f?"block":"none"
+	}
 }
 async loadScene(scene) {
 
@@ -4226,6 +4232,7 @@ setParam(param,dom) {
 		return s ;
 	}
 	function _setdisp(i,v) {
+		if(v===undefined) return 
 		if(param[i].type=="color" && v ) {
 			document.getElementById('_p_d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
 		} else if(param[i].type=="range")  document.getElementById('_p_d_'+i).innerHTML = v.toString().substr(0,5) ;	

@@ -211,7 +211,9 @@ setpox(POX) {
 	}
 	POX.addTex = (tex)=>this.render.addTex(tex)
 	POX.updateTex = (tex,data)=>this.render.updateTex(tex,data)
-	
+	POX.loading = (f)=>{
+		if($('loading')) $('loading').style.display = f?"block":"none"
+	}
 }
 async loadScene(scene) {
 
@@ -331,6 +333,7 @@ setParam(param,dom) {
 		return s ;
 	}
 	function _setdisp(i,v) {
+		if(v===undefined) return 
 		if(param[i].type=="color" && v ) {
 			document.getElementById('_p_d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
 		} else if(param[i].type=="range")  document.getElementById('_p_d_'+i).innerHTML = v.toString().substr(0,5) ;	
