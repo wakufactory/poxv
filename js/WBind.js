@@ -45,6 +45,7 @@ WBind._getval = function(e) {
 		}
 	}
 	if(e.type=="range") v = parseFloat(v) ;
+	if(e.type=="file") v = e.files 
 	return v ;		
 }
 
@@ -183,6 +184,7 @@ WBind.obj.prototype.bindInput= function(name,elem,func) {
 					self._check[name][this.value] = this.checked ;
 					val = _getprop(name);
 				}
+
 				else val = this.value ;
 				self.prop[name] = val ;
 				if(self._func[name].get) val = self._func[name].get(val) ;
@@ -260,6 +262,7 @@ WBind.obj.prototype.bindInput= function(name,elem,func) {
 				}
 			}			
 		}
+		else if(e.type=="file") ;
 		else e.value = v ;	
 	}
 	return this ;
