@@ -504,11 +504,15 @@ objModel(addvec,mode) {
 			nz = n[i][2] ;
 		} else {
 			//面法線の合成
+			if(!sn[i]) {
+				nx =0,ny=0,nz=0
+			} else {
 			for(let j=0;j<sn[i].length;j++) {
 				let ii = sn[i][j] ;
 				nx += sf[ii][0] ;
 				ny += sf[ii][1] ;
 				nz += sf[ii][2] ;
+			}
 			}
 		}
 		let vn = Math.hypot(nx,ny,nz) ;
@@ -844,7 +848,7 @@ static async loadObj2(path,opt) {
 				}
 				if(cmd == "mtllib") {
 					if(path.constructor == File ){
-							mtlspath.push(	ll[1])
+							mtlspath.push(	ll.splice(1).join(" "))
 						 return
 					}
 					let pp = path.split("/") 
@@ -941,7 +945,7 @@ static async loadMtl(path) {
 				case "map_Kd":
 				case "map_Ka":
 				case "map_Ks":
-					mtls[mtlname][cmd] = ll[0]
+					mtls[mtlname][cmd] = ll.join(" ")
 					break;
 			}
 		}).then(r=>{
