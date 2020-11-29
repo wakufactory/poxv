@@ -112,6 +112,7 @@ clearEvent() {
 	this.eventListener.vrchange = []
 }
 
+// load soure jsonfile
 async load(d) {
 	return new Promise((resolve,reject) => {
 		if(typeof d == "string") {
@@ -216,6 +217,7 @@ async loadScene(scene) {
 
 	
 }
+//set js soure and init 
 async setsrc(sc,settings) {
 	this.pox.src = sc 
 	this.pox.setting = settings 
@@ -223,139 +225,8 @@ async setsrc(sc,settings) {
 		this.initModule(mod)
 	})
 }
-async set(d,param={},uidom) { 
-return
-	const VS = d.vs ;
-	const FS = d.fs ;
-	this.pox.src = d 
-	this.pox.param = param 
-	const POX = this.pox
 
-	POX.loadImage = this.loadImage 
-	POX.loadAjax = this.wwg.loadAjax
-	POX.addEvent = (e,f) => this.addEvent(e,f)
-	POX.exitVR = this.exitVR 
-	try {
-		POX.profile = new PoxProfile(this)
-	} catch(err) {POX.profile=null }
-	
-	POX.V3add = function() {
-		let x=0,y=0,z=0 ;
-		for(let i=0;i<arguments.length;i++) {
-			x += arguments[i][0] ;y += arguments[i][1] ;z += arguments[i][2] ;
-		}
-		return [x,y,z] ;
-	}
-	POX.V3len = function(v) {
-		return Math.hypot(v[0],v[1],v[2]) ;
-	}
-	POX.V3norm = function(v,s) {
-		const l = V3len(v) ;
-		if(s===undefined) s = 1 ;
-		return (l==0)?[0,0,0]:[v[0]*s/l,v[1]*s/l,v[2]*s/l] ;
-	}
-	POX.V3mult = function(v,s) {
-		return [v[0]*s,v[1]*s,v[2]*s] ;
-	}
-	POX.V3dot = function(v1,v2) {
-		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
-	}
-	POX.Vdistance = function(v1,v2) {
-			return Math.hypot(...v1.map((v,i)=>v-v2[i]))
-	}
-	POX.setScene = async (scene)=> {
-		return new Promise((resolve,reject) => {
-			this.setScene(scene).then( () => {
-				resolve() ;
-			}).catch((err)=>	 {
-				console.log("render err"+err.stack)
-			})
-		})
-	}
-	POX.loadModule = (m)=>this.loadModule(m) 
-	POX.initModule = (m)=>this.initModule(m) 
-	POX.log = (msg)=> {
-		if(this.errCb) this.errCb(msg) ;
-	}
-	POX.addModel = (model)=>{ if(this.render) return this.render.addModel(model) }
-	POX.removeModel = (model)=>{ if(this.render) return this.render.removeModel(model) }
-	POX.getModelData = (model)=>{ if(this.render) return this.render.getModelData(model) }
-	POX.setModelData = (model,data)=>{
-		const m = this.render.getModelData(model)
-		if(data.matrix) m.mm = data.matrix
-		if(data.fs_uni) {
-			for(let k in data.fs_uni) m.fs_uni[k] = data.fs_uni[k]  
-		}
-		if(data.vs_uni) {
-			for(let k in data.vs_uni) m.vs_uni[k] = data.vs_uni[k]  
-		}
-		for(let k of ["hide","parent","blend","cull"]) if(data[k]!==undefined) m[k] = data[k] 
-		if(data.geo) {
-			this.render.updateModel(model,"vbo",data.geo.vtx,data.geo.subdata)
-		}
-		if(data.inst) {
-			this.render.updateModel(model,"inst",data.inst.data,data.inst.subdata)		
-		}
-	}
-	POX.setSceneData = (data) =>{
-		if(data.fs_uni) {
-			for(let k in data.fs_uni) this.render.data.fs_uni[k] = data.fs_uni[k]  
-		}
-		if(data.vs_uni) {
-			for(let k in data.vs_uni) this.render.data.vs_uni[k] = data.vs_uni[k]  
-		}
-		if(data.env) {
-			for(let k in data.env) this.render.data.env[k] = data.env[k]  
-		}		
-	}
-//	this.parseJS(d.m).then((m)=> {
-	if(typeof d.m  == "string") {
-		const m = await this.parseJS(d.m) ;
-		try {
-			POX.eval = new Function("POX",'"use strict";'+m)
-		}catch(err) {
-			console.log(err)
-			this.emsg = ("parse error "+err.stack);
-//			throw new Error('reject!!')
-			return(null);
-		}
-		try {
-			POX.eval(POX)
-
-		}catch(err) {
-//			console.log(err.stack)
-			this.emsg = ("eval error "+err.stack);
-//			throw new Error('reject!!2')
-			return(null);
-		}
-	} else if(d.m.constructor === Function) {
-		try {
-			d.m(POX)
-		}catch(err) {
-//			console.log(err.stack)
-			this.emsg = ("eval error "+err.stack);
-//			throw new Error('reject!!2')
-			return(null);
-		}
-	}
-	if(POX.setting.needWGL2 && this.wwg.version!=2) {
-		this.emsg = "needs WebGL 2.0"
-		return(null)
-	}
-
-	if(uidom) this.setParam(uidom)
-	if(POX.init) {
-		try {
-			await POX.init()
-		}catch(err) {
-//				console.log(err)
-			this.emsg = ("init error "+err.stack);
-//				throw new Error('reject!!2')
-			return null
-		}
-	}
-	return(POX) ;
-}
+// load module from string source
 loadModuleSrc(src,param) {
 	function b64EncodeUnicode(str) {
 	    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
@@ -366,9 +237,10 @@ loadModuleSrc(src,param) {
 	return this.loadModule("data:text/javascript;base64," 
 		+ b64EncodeUnicode(src),param)
 }
-async loadModule(src,param) {
+// load module from path
+async loadModule(path,param) {
 	return new Promise((resolve,reject) => {
-		import(src).then((module)=> {
+		import(path).then((module)=> {
 			resolve(module)
 		}).catch((err)=>{
 			this.pox.log("module "+err.stack )
@@ -392,27 +264,7 @@ initModule(module) {
 			resolve(module)
 	})	
 }
-parseJS(src) {
-	return new Promise((resolve,reject) => {
-		const s = src.split("\n") ;
-		const inc = [] ;
-		for(let v of s) {
-			if(v.match(/^\/\/\@INCLUDE\("(.+)"\)/)) {
-				inc.push( this.wwg.loadAjax(RegExp.$1)) ;
-			} 
-		}
-		Promise.all(inc).then((res)=>{
-			let ret = [] ;
-			let c = 0 ;
-			for(let v of s) {
-				if(v.match(/^\/\/\@INCLUDE\("(.+)"\)/)) {
-					ret = ret.concat(res[c++].split("\n"))
-				} else ret.push(v) ;
-			}
-			resolve( ret.join("\n"))  ;
-		})
-	})
-}
+
 stop() {
 	window.cancelAnimationFrame(this.loop) ; 
 	if(this.pox.unload) this.pox.unload() ;
@@ -458,8 +310,7 @@ callEvent(kind,ev,opt) {
 	}
 	return ret 
 }
-setParam(dom) {
-	const param = this.pox.setting.param ;
+setParam(param,dom) {
 	if(param===undefined) return ;
 	this.uparam = WBind.create()
 	const input = [] ;

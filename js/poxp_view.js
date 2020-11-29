@@ -147,9 +147,6 @@ POXP.load = function(src,query=null) {
 POXP.set = function(src,q) {
 
 	return new Promise(async (resolve,reject)=>{
-		
-	if(src.renders) {
-		
 		if(src.modules) {
 			try {
 				const m1 = await POXP.poxp.loadModuleSrc(src.modules[0])
@@ -166,7 +163,12 @@ POXP.set = function(src,q) {
 
 		POXP.setting = src.settings
 		document.title = `PoExE:${POXP.setting.name}`
-		if(src.settings.copyright) $("footer").innerHTML = POXP.setting.copyright ;
+		if(src.settings.copyright) $("footer").innerHTML = POXP.setting.copyright
+		
+		if(src.settings.gui) {
+			POXP.poxp.setParam(src.settings.gui,$('pui'))
+		}
+		// only one render 
 		POXP.poxp.setsrc(src.renders[0],src.settings).then((pox)=>{
 			POXP.msg("eval ok")			
 		}).catch((err)=>{
@@ -175,8 +177,7 @@ POXP.set = function(src,q) {
 			POXP.msg(POXP.poxp.emsg);
 			reject()
 		})	
-	} 
-})
+	})
 }
 POXP.msg = (msg)=> {
 	let dt = new Date 
