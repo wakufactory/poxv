@@ -610,6 +610,7 @@ objModel(addvec,mode) {
 		let vz = buf[2] * v[0] + buf[6] * v[1] + buf[10] * v[2] + buf[14] ;
 		this.obj_v[i] = [vx,vy,vz] ;
 	}
+	if(!this.obj_n) return 
 	buf = inv.getAsArray() 
 	for(let i=0;i<this.obj_n.length;i++) {
 		let v = this.obj_n[i] ;
