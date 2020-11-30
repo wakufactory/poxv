@@ -53,7 +53,8 @@ POXP.init= function(canvas=null) {
 		const id = ev.target.getAttribute("data-key")
 		if(id==2) {
 			const d = ev.target.getAttribute("data-dir")
-			pad.axes[(d&2)?1:0] =  (d&1)?0.8:-0.8 			
+			pad.axes[(d&2)?1:0] =  (d&1)?0.8:-0.8
+			pad.axes[(d&2)?3:2] =  (d&1)?0.8:-0.8
 		} 
 		pad.buttons[id].touched = true 
 		if(tpad) tpad.set(pad) 
@@ -63,7 +64,8 @@ POXP.init= function(canvas=null) {
 		const id = ev.target.getAttribute("data-key")
 		if(id==2) {
 			const d = ev.target.getAttribute("data-dir")
-			pad.axes[(d&2)?1:0] =  (d&1)?0.8:-0.8 			
+			pad.axes[(d&2)?1:0] =  (d&1)?0.8:-0.8 	
+			pad.axes[(d&2)?3:2] =  (d&1)?0.8:-0.8		
 		} 
 		pad.buttons[id].touched = true 
 		pad.buttons[id].pressed = true 
@@ -162,7 +164,7 @@ POXP.set = function(src,q) {
 		}
 
 		POXP.setting = src.settings
-		document.title = `PoExE:${POXP.setting.name}`
+		if(document.title=="") document.title = `PoExE:${POXP.setting.name}`
 		if(src.settings.copyright) $("footer").innerHTML = POXP.setting.copyright
 		
 		if(src.settings.gui) {

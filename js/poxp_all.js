@@ -1838,6 +1838,7 @@ static async loadObj2(path,opt) {
 						if(n.length>0) obj.obj_n = n
 					}
 					objs.push({obj:obj,mtlname:m})
+					if(typeof path !="string") path=""
 					console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+obj.obj_v.length) ;
 				}
 				groups.push({objs:objs,group:g})
@@ -4117,6 +4118,7 @@ setpox(POX) {
 	}
 	POX.addTex = (tex)=>this.render.addTex(tex)
 	POX.updateTex = (tex,data)=>this.render.updateTex(tex,data)
+	POX.removeTex = (tex)=>this.render.removeTex(tex)
 	POX.loading = (f)=>{
 		if($('loading')) $('loading').style.display = f?"block":"none"
 	}

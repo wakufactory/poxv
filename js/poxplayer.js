@@ -211,6 +211,7 @@ setpox(POX) {
 	}
 	POX.addTex = (tex)=>this.render.addTex(tex)
 	POX.updateTex = (tex,data)=>this.render.updateTex(tex,data)
+	POX.removeTex = (tex)=>this.render.removeTex(tex)
 	POX.loading = (f)=>{
 		if($('loading')) $('loading').style.display = f?"block":"none"
 	}
