@@ -684,6 +684,13 @@ static loadLines(path,cb,lbufsize) {
 	if(!lbufsize) lbufsize = 10000
 	const decoder = new TextDecoder
 	return new Promise((resolve,reject)=>{
+		if(Array.isArray(path)) {
+			for(let i=0;i<path.length;i++) {
+				cb(path[i])
+			}
+			resolve(path)
+			return 
+		}
 		if(path.constructor == File ){	// load File
 			const reader = new FileReader()
 			reader.onload = (e)=> {
@@ -847,8 +854,8 @@ static async loadObj2(path,opt) {
 					xl[group][usemtl].push(ix) ;
 				}
 				if(cmd == "mtllib") {
-					if(path.constructor == File ){
-							mtlspath.push(	ll.splice(1).join(" "))
+					if(path.constructor == File || Array.isArray(path) ){
+							mtlspath.push(	ll.splice(1).join(" ").trim())
 						 return
 					}
 					let pp = path.split("/") 
@@ -945,7 +952,7 @@ static async loadMtl(path) {
 				case "map_Kd":
 				case "map_Ka":
 				case "map_Ks":
-					mtls[mtlname][cmd] = ll.join(" ")
+					mtls[mtlname][cmd] = ll.join(" ").trim()
 					break;
 			}
 		}).then(r=>{
