@@ -39,6 +39,7 @@ constructor(can,opt) {
 	this.pox = {can:this.can,wwg:this.wwg,synth:this.synth,poxp:this}
 	this.setpox(this.pox)
 	this.eventListener = {}
+	this.clearEvent() 
 
 	if(window.GPad) {
 		this.pox.gPad = new GPad()
@@ -98,6 +99,10 @@ addEvent(ev,cb) {
 			el = {cb:cb,active:true}
 			this.eventListener.vrchange.push(el)
 			break 
+		case "param":
+			el = {cb:cb,active:true}
+			this.eventListener.param.push(el)
+			break 
 	}
 	return el
 }
@@ -105,11 +110,13 @@ removeEvent (ev) {
 	this.eventListener.frame = this.eventListener.frame.filter((e)=>(e!==ev))
 	this.eventListener.gpad = this.eventListener.gpad.filter((e)=>(e!==ev))
 	this.eventListener.vrchange = this.eventListener.vrchange.filter((e)=>(e!==ev))
+	this.eventListener.param = this.eventListener.param.filter((e)=>(e!==ev))
 }
 clearEvent() {
 	this.eventListener.frame = []
 	this.eventListener.gpad = []
 	this.eventListener.vrchange = []
+	this.eventListener.param = []
 }
 
 // load soure jsonfile
@@ -311,6 +318,14 @@ callEvent(kind,ev,opt) {
 			}
 		}		
 	}
+	if(kind=="param") {
+		for(let i=0;i<this.eventListener.param.length;i++) {	//attached event
+			const f = this.eventListener.param[i]
+			if(f.active) {
+				f.cb(ev)
+			}
+		}
+	}
 	return ret 
 }
 setParam(param,dom) {
@@ -366,6 +381,7 @@ setParam(param,dom) {
 			input:(v)=>{
 				_setdisp(i,this.uparam[i])
 //				this.keyElelment.focus()
+				this.callEvent("param",{name:param[i].name,value:v})
 			}
 		})
 		this.uparam[i] = param[i].value ;
