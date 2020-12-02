@@ -172,7 +172,7 @@ POXP.set = function(src,q) {
 		}
 		// only one render 
 		POXP.poxp.setsrc(src.renders[0],src.settings).then((pox)=>{
-			POXP.msg("eval ok")			
+			POXP.msg("init ok")			
 		}).catch((err)=>{
 			console.log(err)
 			console.log("catch")

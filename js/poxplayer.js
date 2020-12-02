@@ -335,12 +335,12 @@ setParam(param,dom) {
 	for(let i in param) {
 		const p = param[i] ;
 		const name = (p.name)?p.name:i ;
+		let size = ""
 		if(!p.type) p.type = "range" 
 		if(!p.step) p.step = 100 ;
-		let tag = `<div class=t>${name}</div> <input type=${p.type} id="_p_${i}" min=0 max=${p.step} style="${(p.type=="disp")?"display:none":""}"  /><span id=${"_p_d_"+i}></span><br/>`
-		input.push(
-			tag
-		)
+		if(p.size) size = "size="+p.size
+		let tag = `<div class=b><div class=t>${name}</div> <input type=${p.type} id="_p_${i}" ${size} min=0 max=${p.step} style="${(p.type=="disp")?"display:none":""}"  /><div class=v id=${"_p_d_"+i}></div></div>`
+		input.push(tag)
 	}
 	dom.innerHTML = input.join("") 
 	function _tohex(v) {
@@ -349,42 +349,50 @@ setParam(param,dom) {
 		return s ;
 	}
 	function _setdisp(i,v) {
-		if(v===undefined) return 
+		if(v===undefined || param[i].type=="file"|| param[i].type=="text"|| param[i].type=="button") return 
 		if(param[i].type=="color" && v ) {
 			document.getElementById('_p_d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
-		} else if(param[i].type=="range")  document.getElementById('_p_d_'+i).innerHTML = v.toString().substr(0,5) ;	
-		else document.getElementById('_p_d_'+i).innerHTML = v
+		} else if(param[i].type=="range")  {
+			if(param[i].enum) {
+				document.getElementById('_p_d_'+i).innerHTML = param[i].enum[Math.floor(v)]
+			} else document.getElementById('_p_d_'+i).innerHTML = v.toString().substr(0,5) ;	
+		} else document.getElementById('_p_d_'+i).innerHTML = v
 	}
 	for(let i in param) {
+		let p = param[i]
 		this.uparam.bindInput(i,"#_p_"+i)
 		this.uparam.setFunc(i,{
 			set:(v)=> {
 				let ret = v ;
-				if(param[i].type=="color") {
+				if(p.type=="color") {
 					ret = "#"+_tohex(v[0])+_tohex(v[1])+_tohex(v[2])
-				} else if(param[i].type=="range") ret = (v - param[i].min)*(param[i].step)/(param[i].max - param[i].min)
-				else ret = v ;
+				} else if(p.type=="range") {
+					if(p.scale=="log10") ret = Math.log10(p.value/p.min)/Math.log10(p.max/p.min)*p.step
+					else ret = (v - p.min)*(p.step)/(p.max - p.min)
+				}
 //				console.log(ret)
-				_setdisp(i,v)
+				_setdisp(i,ret)
 				return ret 	
 			},
 			get:(v)=> {
-				let ret ;
-				if(param[i].type=="color" ) {
+				let ret = v ;
+				if(p.type=="color" ) {
 					if(typeof v =="string" && v.match(/#[0-9A-F]+/i)) {
 						ret =[parseInt(v.substr(1,2),16)/255,parseInt(v.substr(3,2),16)/255,parseInt(v.substr(5,2),16)/255] ;
 					} else ret = v ;
-				} else if(param[i].type=="range" ) ret = v*(param[i].max-param[i].min)/(param[i].step)+param[i].min	
-				else ret = v ;		
+				} else if(p.type=="range" ) {
+					if(p.scale=="log10") ret = Math.pow(10,Math.log10(p.min)+Math.log10(p.max/p.min)*v/p.step)
+					else ret = v*(p.max-p.min)/(p.step)+p.min 
+				}		
 				return ret ;
 			},
 			input:(v)=>{
 				_setdisp(i,this.uparam[i])
 //				this.keyElelment.focus()
-				this.callEvent("param",{name:param[i].name,value:v})
+				this.callEvent("param",{key:i,value:v})
 			}
 		})
-		this.uparam[i] = param[i].value ;
+		this.uparam[i] = p.value ;
 	}
 	this.pox.param = this.uparam ;
 }

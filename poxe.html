@@ -3,7 +3,7 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="viewport" content="width=device-width" /> 
-<title>PolygonExplorerEditor </title>
+<title></title>
 <script src="js/Vector.js?20200813"></script>
 <script src="js/WWG.js?20200816"></script>
 <script src="js/CanvasMatrix.js?20201129"></script>
@@ -20,6 +20,7 @@
 <script src="js/json2canvas.js"></script>
 <script src="js/was.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.min.js" integrity="sha512-GoORoNnxst42zE3rYPj4bNBm0Q6ZRXKNH2D9nEmNvVF/z24ywVnijAWVi/09iBiVDQVf3UlZHpzhAJIdd9BXqw==" crossorigin="anonymous"></script>
+<script src="/js/unzip.min.js"></script>
 
 <script >
 const POXE ={} 
@@ -40,7 +41,7 @@ onload = ()=> {
 			}
 			if(src.settings) {
 				$('title').innerHTML = src.settings.name
-				POXE.e1.setValue(JSON.stringify(src.settings).replace(/,/g,",\n"),-1) ;	
+				POXE.e1.setValue(JSON.stringify(src.settings).replace(/\},/g,"},\n").replace(/:\{/g,":{\n"),-1) ;	
 			}
 			if(src.modules) {
 				POXE.em1.setValue(src.modules[0],-1) ;
@@ -274,13 +275,20 @@ div.edit textarea {
 	opacity:0.6 ;
 	vertical-align:baseline;
 }
+#pui div.b{
+	display:flex ;
+}
 #pui input {
 	font-size:0.8rem ;
 }
 #pui div.t {
-	float:left;
-	width:3rem ;
+	width:4rem ;
 	padding-left:0.2rem ;
+	overflow:hidden ;
+}
+#pui div.v {
+	width:4rem ;
+	padding-left:0.5rem ;
 	overflow:hidden ;
 }
 #ec {
