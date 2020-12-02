@@ -52,14 +52,14 @@ GPad.prototype.init = function(idx,cb) {
 			{pressed:false,touched:false},
 			{pressed:false,touched:false}
 		],
-		axes:[0,0]
+		axes:[0,0,0,0]
 	}
 	this.egp = {
 		buttons:[
 			{pressed:false,touched:false},
 			{pressed:false,touched:false}
 		],
-		axes:[0,0]
+		axes:[0,0,0,0]
 	}
 	return ret ;
 }
@@ -149,7 +149,7 @@ GPad.prototype.clear = function(gp) {//for emulation
 			{pressed:false,touched:false},
 			{pressed:false,touched:false}
 		],
-		axes:[0,0]
+		axes:[0,0,0,0]
 	}
 	this.egp = gp
 	this.cf = true ;	

@@ -53,6 +53,7 @@ POXP.init= function(canvas=null) {
 		const id = ev.target.getAttribute("data-key")
 		if(id==2) {
 			const d = ev.target.getAttribute("data-dir")
+			pad.axes[2] = 0 ; pad.axes[3] = 0
 			pad.axes[(d&2)?1:0] =  (d&1)?0.8:-0.8
 			pad.axes[(d&2)?3:2] =  (d&1)?0.8:-0.8
 		} 
@@ -64,6 +65,7 @@ POXP.init= function(canvas=null) {
 		const id = ev.target.getAttribute("data-key")
 		if(id==2) {
 			const d = ev.target.getAttribute("data-dir")
+			pad.axes[2] = 0 ; pad.axes[3] = 0
 			pad.axes[(d&2)?1:0] =  (d&1)?0.8:-0.8 	
 			pad.axes[(d&2)?3:2] =  (d&1)?0.8:-0.8		
 		} 

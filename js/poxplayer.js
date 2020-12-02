@@ -367,7 +367,7 @@ setParam(param,dom) {
 				if(p.type=="color") {
 					ret = "#"+_tohex(v[0])+_tohex(v[1])+_tohex(v[2])
 				} else if(p.type=="range") {
-					if(p.scale=="log10") ret = Math.log10(p.value/p.min)/Math.log10(p.max/p.min)*p.step
+					if(p.scale=="log10") ret = Math.log10(v/p.min)/Math.log10(p.max/p.min)*p.step
 					else ret = (v - p.min)*(p.step)/(p.max - p.min)
 				}
 //				console.log(ret)
